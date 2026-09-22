@@ -1,0 +1,19 @@
+{
+  "name": "fedstroy-landing",
+  "version": "2.0.0",
+  "description": "Официальный сайт СК ООО «ФЕДСТРОЙ» — Вентилируемые фасады, фальшполы и подсистемы",
+  "main": "build.js",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch",
+    "serve": "python -m http.server 8080"
+  },
+  "keywords": [
+    "fedstroy",
+    "b2b",
+    "facade",
+    "construction"
+  ],
+  "author": "ООО «ФЕДСТРОЙ»",
+  "license": "ISC"
+}

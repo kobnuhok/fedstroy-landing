@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ООО «ФЕДСТРОЙ» — Вентилируемые фасады, фальшполы и подсистемы под ключ</title>
+  <meta name="description" content="Официальный сайт СК ООО «ФЕДСТРОЙ». Проектирование, производство металлических подсистем, монтаж навесных вентилируемых фасадов и фальшполов по всей России. Допуск СРО, гарантия 5 лет.">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ea580c'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/></svg>">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Onest:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            heading: ['Onest', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              400: '#fb923c',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+              800: '#9a3412',
+              900: '#7c2d12',
+            },
+            surface: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              800: '#1e293b',
+              900: '#0f172a',
+              950: '#020617',
+            }
+          },
+          screens: {
+            'xs': '480px',
+            'sm': '640px',
+            'md': '768px',
+            'lg': '1024px',
+            'xl': '1280px',
+            '2xl': '1536px',
+            '3xl': '1920px',
+            '4xl': '2400px',
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Стили: Базовые компоненты и Адаптивная верстка (разделены) -->
+  <link rel="stylesheet" href="./css/style.css">
+  <link rel="stylesheet" href="./css/adaptive.css">
+</head>
+<body class="bg-surface-50 text-slate-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- @@include blocks/header.html -->
+  <!-- @@include blocks/hero.html -->
+  <!-- @@include blocks/about.html -->
+  <!-- @@include blocks/services.html -->
+  <!-- @@include blocks/quiz.html -->
+  <!-- @@include blocks/calculator.html -->
+  <!-- @@include blocks/systems.html -->
+  <!-- @@include blocks/portfolio.html -->
+  <!-- @@include blocks/compliance.html -->
+  <!-- @@include blocks/contacts.html -->
+  <!-- @@include blocks/footer.html -->
+  <!-- @@include blocks/floating-dock.html -->
+  <!-- @@include blocks/modals.html -->
+
+<script src="./app.js"></script>
+</body>
+</html>

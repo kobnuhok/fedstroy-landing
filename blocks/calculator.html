@@ -1,0 +1,170 @@
+<!-- ==================== INTERACTIVE B2B CALCULATOR ==================== -->
+  <section id="calculator" class="py-16 sm:py-24 xl:py-28 bg-white border-b border-slate-200">
+    <div class="page-container">
+      
+      <div class="text-center max-w-4xl mx-auto mb-14 sm:mb-16">
+        <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block mb-2">Инженерный калькулятор сметы</span>
+        <h2 class="font-heading text-3xl sm:text-4xl xl:text-5xl font-extrabold text-slate-900 tracking-tight">
+          Онлайн-расчет стоимости объекта
+        </h2>
+        <p class="text-slate-600 mt-3 text-base sm:text-lg">
+          Выберите параметры здания — калькулятор сформирует сметную вилку бюджета с учетом цен металлопроката и комплектующих на текущий месяц.
+        </p>
+      </div>
+
+      <div class="grid lg:grid-cols-12 gap-8 xl:gap-12 items-start">
+        
+        <!-- Calculator Controls Form -->
+        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+          
+          <!-- System Type -->
+          <div>
+            <label class="block text-sm font-bold text-slate-900 mb-3">1. Тип строительной системы</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <label class="cursor-pointer">
+                <input type="radio" name="system-type" value="facade" class="peer sr-only" checked>
+                <div class="p-3.5 text-center rounded-2xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 transition-all font-semibold text-xs sm:text-sm">
+                  Вентфасад (НВФ)
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="system-type" value="falshpol" class="peer sr-only">
+                <div class="p-3.5 text-center rounded-2xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 transition-all font-semibold text-xs sm:text-sm">
+                  Фальшпол
+                </div>
+              </label>
+              <label class="cursor-pointer col-span-2 sm:col-span-1">
+                <input type="radio" name="system-type" value="complex" class="peer sr-only">
+                <div class="p-3.5 text-center rounded-2xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 transition-all font-semibold text-xs sm:text-sm">
+                  Фасад + Потолки
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Area Slider & Quick Presets -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label for="calc-area" class="text-sm font-bold text-slate-900">2. Площадь объекта (м²)</label>
+              <span class="font-heading font-black text-brand-600 text-xl sm:text-2xl"><span id="calc-area-val">650</span> м²</span>
+            </div>
+            <input type="range" id="calc-area" min="100" max="6000" step="50" value="650" class="w-full h-2.5 rounded-lg" aria-label="Площадь объекта в квадратных метрах">
+            
+            <!-- Quick preset buttons -->
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+              <span class="text-xs text-slate-500 mr-1">Быстрый выбор:</span>
+              <button type="button" class="js-area-preset px-3 py-1 bg-white border border-slate-200 hover:border-brand-500 rounded-lg text-xs font-semibold text-slate-700 transition-colors" data-area="250">250 м²</button>
+              <button type="button" class="js-area-preset px-3 py-1 bg-brand-600 text-white border border-brand-600 rounded-lg text-xs font-semibold transition-colors" data-area="650">650 м²</button>
+              <button type="button" class="js-area-preset px-3 py-1 bg-white border border-slate-200 hover:border-brand-500 rounded-lg text-xs font-semibold text-slate-700 transition-colors" data-area="1500">1 500 м²</button>
+              <button type="button" class="js-area-preset px-3 py-1 bg-white border border-slate-200 hover:border-brand-500 rounded-lg text-xs font-semibold text-slate-700 transition-colors" data-area="3000">3 000 м²</button>
+              <button type="button" class="js-area-preset px-3 py-1 bg-white border border-slate-200 hover:border-brand-500 rounded-lg text-xs font-semibold text-slate-700 transition-colors" data-area="5000">5 000 м²</button>
+            </div>
+          </div>
+
+          <!-- Materials and Subsystems 2-Col Grid -->
+          <div class="grid sm:grid-cols-2 gap-6">
+            <!-- Material Selection -->
+            <div>
+              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">3. Материал облицовки / плит</label>
+              <select id="calc-material" class="w-full p-3.5 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
+                <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
+                <option value="composite">Алюминиевый композит (АКП)</option>
+                <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
+                <option value="fibrocement">Фиброцементные плиты (в массе)</option>
+                <option value="hpl">HPL-панели (высокое давление)</option>
+              </select>
+            </div>
+
+            <!-- Subsystem Metal Selection -->
+            <div>
+              <label class="block text-sm font-bold text-slate-900 mb-2">4. Металл подсистемы</label>
+              <div class="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+                <label class="cursor-pointer">
+                  <input type="radio" name="subsystem-metal" value="galvanized" class="peer sr-only" checked>
+                  <div class="p-3 text-center rounded-xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 font-semibold transition-all">
+                    Оцинковка
+                  </div>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="subsystem-metal" value="aluminum" class="peer sr-only">
+                  <div class="p-3 text-center rounded-xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 font-semibold transition-all">
+                    Алюминий
+                  </div>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="subsystem-metal" value="stainless" class="peer sr-only">
+                  <div class="p-3 text-center rounded-xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 font-semibold transition-all">
+                    Нержавейка
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Installation work checkbox -->
+          <div class="pt-2 border-t border-slate-200">
+            <label class="flex items-center gap-3.5 cursor-pointer">
+              <input type="checkbox" id="calc-install" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
+              <span class="text-sm text-slate-800 font-medium">Включить монтажные работы «под ключ» бригадой с допуском (+1 450 ₽/м²)</span>
+            </label>
+          </div>
+
+        </div>
+
+        <!-- Calculated Summary Card & Lead Form -->
+        <div class="lg:col-span-5 2xl:col-span-5 bg-surface-900 text-white p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-800 shadow-2xl form-container sticky top-28">
+          <div class="border-b border-slate-800 pb-6 mb-6">
+            <span class="text-xs uppercase tracking-wider text-slate-400 font-bold block mb-1.5">Ориентировочная стоимость</span>
+            <div class="text-4xl sm:text-5xl 2xl:text-6xl font-black font-heading text-brand-500 tracking-tight" id="calc-total-min">1 850 000 ₽</div>
+            <div class="text-xs sm:text-sm text-slate-400 mt-2 flex justify-between items-center">
+              <span>Предельная планка: <strong class="text-slate-200" id="calc-total-max">2 450 000 ₽</strong></span>
+              <span id="calc-per-meter" class="text-slate-300 font-mono font-bold bg-slate-800 px-2.5 py-1 rounded">от 2 850 ₽/м²</span>
+            </div>
+          </div>
+
+          <!-- Key Project Estimates -->
+          <div class="grid grid-cols-2 gap-4 mb-6 text-xs sm:text-sm text-slate-300">
+            <div class="bg-surface-800/90 p-4 rounded-2xl border border-slate-700/80">
+              <span class="text-slate-400 block mb-1 text-xs">Расчетный срок:</span>
+              <span class="font-bold text-white text-sm sm:text-base" id="calc-duration">12–16 раб. дней</span>
+            </div>
+            <div class="bg-surface-800/90 p-4 rounded-2xl border border-slate-700/80">
+              <span class="text-slate-400 block mb-1 text-xs">Пакет документов:</span>
+              <span class="font-bold text-white text-sm sm:text-base">Паспорт + СРО</span>
+            </div>
+          </div>
+
+          <!-- Lock Estimate Form -->
+          <form class="space-y-4 js-lead-form">
+            <input type="hidden" name="source" value="Калькулятор стоимости">
+            <div>
+              <label for="lead-name" class="block text-xs font-semibold text-slate-300 mb-1.5">Ваше имя / Компания</label>
+              <input type="text" id="lead-name" name="name" placeholder="Константин, ООО «Монолит»" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-name">Укажите контактное лицо</p>
+            </div>
+
+            <div>
+              <label for="lead-phone" class="block text-xs font-semibold text-slate-300 mb-1.5">Телефон для получения официального КП</label>
+              <input type="tel" id="lead-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-phone">Введите корректный номер телефона</p>
+            </div>
+
+            <div class="flex items-start gap-2.5 pt-1">
+              <input type="checkbox" id="calc-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-700 bg-surface-800 focus:ring-brand-500" checked>
+              <label for="calc-agree" class="text-xs text-slate-400 leading-tight">
+                Согласен на обработку персональных данных (152-ФЗ) и получение расчетной сметы
+              </label>
+            </div>
+            <p class="error-msg text-xs text-red-400 hidden" id="error-agreement">Необходимо подтвердить согласие</p>
+
+            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base uppercase tracking-wider">
+              Зафиксировать расчет в смету
+            </button>
+            <span class="block text-xs text-center text-slate-500">Фиксация стоимости по расчету действует 30 дней</span>
+          </form>
+
+        </div>
+
+      </div>
+    </div>
+  </section>

@@ -1,0 +1,115 @@
+<!-- ==================== LEAD MODAL ==================== -->
+  <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200 form-container">
+      
+      <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300" aria-label="Закрыть">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+
+      <div class="mb-6">
+        <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block mb-1">ООО «ФЕДСТРОЙ»</span>
+        <h3 id="modal-title" class="font-heading text-2xl font-bold text-slate-900">Запрос коммерческого предложения</h3>
+        <p id="modal-service-title" class="text-xs text-slate-500 mt-1">Оставьте контактные данные — инженер свяжется для уточнения техзадания</p>
+      </div>
+
+      <form class="space-y-4 js-lead-form">
+        <input type="hidden" name="source" value="Модальное окно запроса">
+
+        <div>
+          <label for="modal-name" class="block text-xs font-semibold text-slate-700 mb-1">Ваше имя / Должность</label>
+          <input type="text" id="modal-name" name="name" placeholder="Александр, главный инженер" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-name">Пожалуйста, укажите имя</p>
+        </div>
+
+        <div>
+          <label for="modal-phone" class="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
+          <input type="tel" id="modal-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-phone">Укажите номер для связи</p>
+        </div>
+
+        <div class="flex items-start gap-2.5 pt-1">
+          <input type="checkbox" id="modal-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
+          <label for="modal-agree" class="text-xs text-slate-600 leading-tight">
+            Согласен на обработку персональных данных в соответствии с Федеральным законом № 152-ФЗ
+          </label>
+        </div>
+        <p class="error-msg text-xs text-red-500 hidden" id="error-modal-agreement">Необходимо подтвердить согласие</p>
+
+        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm">
+          Отправить заявку
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ==================== EXPRESS 25-MINUTE CALLBACK MODAL ==================== -->
+  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Экспресс-обратный звонок">
+    <div class="relative max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200">
+      <!-- Close button -->
+      <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть модальное окно">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+
+      <!-- Modal Header -->
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block">Экспресс-связь ПТО</span>
+          <h3 class="font-heading text-xl font-bold text-slate-900 leading-tight">Звонок за 25 минут</h3>
+        </div>
+      </div>
+
+      <p class="text-slate-600 text-xs sm:text-sm mb-6 leading-relaxed">
+        Оставьте номер — дежурный инженер свяжется с вами, ответит на вопросы по узлам подсистемы или примет ТЗ на расчет.
+      </p>
+
+      <!-- Express Form -->
+      <form class="js-lead-form space-y-4">
+        <input type="hidden" name="source" value="Экспресс-обратный звонок (25 мин)">
+
+        <div>
+          <label for="callback-name" class="block text-xs font-semibold text-slate-700 mb-1">Ваше имя</label>
+          <input type="text" id="callback-name" name="name" placeholder="Как к вам обращаться?" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-callback-name">Укажите ваше имя</p>
+        </div>
+
+        <div>
+          <label for="callback-phone" class="block text-xs font-semibold text-slate-700 mb-1">Номер телефона *</label>
+          <input type="tel" id="callback-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-callback-phone">Укажите номер для связи</p>
+        </div>
+
+        <div class="flex items-start gap-2.5 pt-1">
+          <input type="checkbox" id="callback-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
+          <label for="callback-agree" class="text-xs text-slate-600 leading-tight">
+            Согласен на обработку персональных данных (152-ФЗ)
+          </label>
+        </div>
+        <p class="error-msg text-xs text-red-500 hidden" id="error-callback-agreement">Необходимо подтвердить согласие</p>
+
+        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md">
+          Жду звонка инженера
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== PHOTO LIGHTBOX VIEWER ==================== -->
+  <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-md transition-all" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
+    <div class="relative max-w-5xl w-full flex flex-col items-center">
+      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none" aria-label="Закрыть фото">
+        <span class="text-xs font-semibold">Закрыть (Esc)</span>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+      <div class="w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800">
+        <img id="lightbox-img" src="" alt="Фотография объекта" class="w-full max-h-[75vh] object-contain mx-auto bg-black">
+        <div class="p-6 bg-surface-900 border-t border-slate-800 text-white">
+          <h3 id="lightbox-title" class="font-heading text-lg sm:text-xl font-bold"></h3>
+          <p id="lightbox-desc" class="text-xs sm:text-sm text-slate-400 mt-1"></p>
+        </div>
+      </div>
+    </div>
+  </div>
