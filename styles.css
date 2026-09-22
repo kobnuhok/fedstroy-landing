@@ -123,3 +123,52 @@ input[type="range"]::-moz-range-thumb {
 .gallery-item:hover .gallery-zoom {
   transform: scale(1.05);
 }
+
+/* ==========================================================================
+   Interactive Quiz & Floating Dock Styles
+   ========================================================================== */
+.quiz-step {
+  transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
+}
+
+.quiz-card-selected {
+  border-color: #ea580c !important;
+  background-color: #fff7ed !important;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.15) !important;
+}
+
+/* Floating Contact Dock */
+.floating-dock-menu {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, visibility 0.2s;
+  transform-origin: bottom right;
+}
+
+.floating-dock-menu.hidden-menu {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.9) translateY(12px);
+  pointer-events: none;
+}
+
+.floating-dock-menu.visible-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+/* Pulse badge */
+@keyframes status-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.5;
+  }
+}
+
+.animate-status-pulse {
+  animation: status-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
