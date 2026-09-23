@@ -17,13 +17,13 @@
   h1, h2, h3, h4, h5, h6 {
     overflow-wrap: break-word;
     word-wrap: break-word;
-    -webkit-hyphens: auto;
-    hyphens: auto;
+    text-wrap: balance;
   }
 
   p, span, li, a, label, strong, button {
     overflow-wrap: break-word;
     word-wrap: break-word;
+    text-wrap: pretty;
   }
 }
 
@@ -92,9 +92,35 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .quiz-card-selected {
-  border-color: #ea580c !important;
-  background-color: rgba(234, 88, 12, 0.16) !important;
-  box-shadow: 0 0 0 1px #ea580c, 0 4px 16px rgba(234, 88, 12, 0.25) !important;
+  border-color: #f97316 !important;
+  background-color: rgba(249, 115, 22, 0.18) !important;
+  box-shadow: 0 0 0 2px #f97316, 0 8px 24px rgba(249, 115, 22, 0.25) !important;
+}
+
+/* Гарантированный контраст карточек квиза в темной теме */
+.quiz-step button {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+  color: #ffffff !important;
+}
+
+.quiz-step button h4 {
+  color: #ffffff !important;
+}
+
+.quiz-step button p {
+  color: #94a3b8 !important;
+}
+
+.quiz-step button.quiz-card-selected {
+  background-color: rgba(249, 115, 22, 0.18) !important;
+}
+
+.quiz-step button.quiz-card-selected h4 {
+  color: #fed7aa !important;
+}
+
+.quiz-step button.quiz-card-selected p {
+  color: #f8fafc !important;
 }
 
 /* Floating Contact Dock */

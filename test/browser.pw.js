@@ -21,7 +21,7 @@ function makeTempDwg() {
 test('desktop: форма калькулятора — заполнить, прикрепить DWG, отправить → экран успеха с ФС-номером', async ({ page, isMobile }) => {
   test.skip(isMobile, 'Тест для десктопа');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveTitle(/ФЕДСТРОЙ/i);
 
   // Скроллим к секции калькулятора
@@ -64,7 +64,7 @@ test('desktop: форма калькулятора — заполнить, пр�
 test('desktop: клиентская валидация — пустая отправка → ошибки отображаются', async ({ page, isMobile }) => {
   test.skip(isMobile, 'Тест для десктопа');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#calculator').scrollIntoViewIfNeeded();
 
   const form = page.locator('#calculator form.js-lead-form');
@@ -88,7 +88,7 @@ test('desktop: клиентская валидация — пустая отпр
 test('desktop: навигация по якорям из хедера скроллит к секции', async ({ page, isMobile }) => {
   test.skip(isMobile, 'Тест для десктопа');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   // Кликаем по ссылке «Калькулятор» в десктопной шапке
   const navCalc = page.locator('nav a[href="#calculator"]').first();
@@ -102,7 +102,7 @@ test('desktop: навигация по якорям из хедера скрол
 test('desktop: квиз — прохождение всех шагов и формирование черновика сметы ПР-XXXX', async ({ page, isMobile }) => {
   test.skip(isMobile, 'Тест для десктопа');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#quiz').scrollIntoViewIfNeeded();
 
   const nextBtn = page.locator('#quiz-next-btn');
@@ -131,7 +131,7 @@ test('desktop: квиз — прохождение всех шагов и фор
 test('mobile: секция калькулятора адаптивна, нет горизонтального переполнения', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'Тест для мобильных');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   // Проверка отсутствия горизонтального скролла на странице
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -156,7 +156,7 @@ test('mobile: секция калькулятора адаптивна, нет �
 test('mobile: бургер-меню открывается и закрывается по тапу', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'Тест для мобильных');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   const mobileMenu = page.locator('#mobile-menu');
   const menuBtn = page.locator('#mobile-menu-btn');
@@ -176,7 +176,7 @@ test('mobile: бургер-меню открывается и закрывает
 test('mobile: отправка заявки через мобильный интерфейс', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'Тест для мобильных');
 
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#calculator').scrollIntoViewIfNeeded();
 
   const form = page.locator('#calculator form.js-lead-form');
