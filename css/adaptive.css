@@ -72,3 +72,33 @@
     padding-right: 1rem;
   }
 }
+
+/* ==========================================================================
+   Калькулятор — планшет (768px – 1023px)
+   На этом диапазоне lg:grid-cols-12 ещё не срабатывает,
+   поэтому принудительно задаём 2-колоночную раскладку.
+   ========================================================================== */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Двухколоночная сетка: левая панель управления + правая карточка */
+  #calculator .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  /* Убираем sticky на планшете — карточка слишком длинная */
+  #calculator .form-container {
+    position: static;
+  }
+
+  /* Немного меньший padding внутри карточки на планшете */
+  #calculator .form-container {
+    padding: 1.5rem;
+  }
+
+  /* Кнопка отправки — чуть меньше на планшете чтобы не обрезалась */
+  #calculator .form-container button[type="submit"] {
+    font-size: 0.8125rem;
+    padding-top: 0.875rem;
+    padding-bottom: 0.875rem;
+  }
+}
