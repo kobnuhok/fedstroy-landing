@@ -14,3 +14,5 @@ extracted_*.txt
 falshpol_text.txt
 .DS_Store
 Thumbs.db
+test-results/
+playwright-report/

@@ -11,17 +11,20 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const ALLOWED_ORIGINS = [
-  'https://kobnuhok.github.io',
-  'https://ooofedstroy.ru',
-  'http://localhost:8080',
-  'http://localhost:3000'
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/kobnuhok\.github\.io$/,
+  /^https:\/\/(www\.)?ooofedstroy\.ru$/,
+  /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 ];
+
 app.use(cors({
   origin: (origin, cb) => {
-    // Разрешаем запросы без origin (curl, Postman, server-to-server) и известные origins
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS: origin ${origin} не разрешён`));
+    // Разрешаем запросы без origin (server-to-server, curl) и из доверенных источников
+    if (!origin || ALLOWED_ORIGIN_PATTERNS.some(re => re.test(origin))) {
+      return cb(null, true);
+    }
+    // Отклоняем CORS без падения сервера (без 500)
+    return cb(null, false);
   }
 }));
 app.use(express.json());
