@@ -128,8 +128,8 @@ export function initQuiz() {
 
   quizSection.querySelectorAll('.js-quiz-type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      quizSection.querySelectorAll('.js-quiz-type-btn').forEach(b => b.classList.remove('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50'));
-      btn.classList.add('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50');
+      quizSection.querySelectorAll('.js-quiz-type-btn').forEach(b => b.classList.remove('quiz-card-selected'));
+      btn.classList.add('quiz-card-selected');
       quizState.type = btn.getAttribute('data-type');
       quizState.typeName = btn.getAttribute('data-name');
     });
@@ -137,8 +137,8 @@ export function initQuiz() {
 
   quizSection.querySelectorAll('.js-quiz-building-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      quizSection.querySelectorAll('.js-quiz-building-btn').forEach(b => b.classList.remove('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50'));
-      btn.classList.add('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50');
+      quizSection.querySelectorAll('.js-quiz-building-btn').forEach(b => b.classList.remove('quiz-card-selected'));
+      btn.classList.add('quiz-card-selected');
       quizState.building = btn.getAttribute('data-building');
       quizState.buildingName = btn.getAttribute('data-name');
     });
@@ -147,8 +147,8 @@ export function initQuiz() {
   const quizAreaInput = document.getElementById('quiz-exact-area');
   quizSection.querySelectorAll('.js-quiz-area-card').forEach(btn => {
     btn.addEventListener('click', () => {
-      quizSection.querySelectorAll('.js-quiz-area-card').forEach(b => b.classList.remove('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50'));
-      btn.classList.add('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50');
+      quizSection.querySelectorAll('.js-quiz-area-card').forEach(b => b.classList.remove('quiz-card-selected'));
+      btn.classList.add('quiz-card-selected');
       const val = parseInt(btn.getAttribute('data-area'), 10);
       quizState.area = val;
       if (quizAreaInput) quizAreaInput.value = val;
@@ -160,7 +160,7 @@ export function initQuiz() {
       const val = parseInt(e.target.value, 10);
       if (val && val > 0) {
         quizState.area = val;
-        quizSection.querySelectorAll('.js-quiz-area-card').forEach(b => b.classList.remove('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50'));
+        quizSection.querySelectorAll('.js-quiz-area-card').forEach(b => b.classList.remove('quiz-card-selected'));
       }
     });
   }

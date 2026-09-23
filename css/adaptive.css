@@ -102,3 +102,47 @@
     padding-bottom: 0.875rem;
   }
 }
+
+/* ==========================================================================
+   Мобильные смартфоны (<= 640px): типографика, защита от вылезания и переносы
+   ========================================================================== */
+@media (max-width: 640px) {
+  /* Гармоничный размер крупных заголовков секций без обрезания слов */
+  h1 {
+    font-size: 1.875rem !important; /* 30px */
+    line-height: 1.2 !important;
+    word-break: break-word;
+    -webkit-hyphens: auto;
+    hyphens: auto;
+  }
+
+  h2 {
+    font-size: 1.5rem !important; /* 24px */
+    line-height: 1.25 !important;
+    word-break: break-word;
+    -webkit-hyphens: auto;
+    hyphens: auto;
+  }
+
+  h3 {
+    font-size: 1.25rem !important; /* 20px */
+    line-height: 1.3 !important;
+    word-break: break-word;
+  }
+
+  /* Защита контента карточек от выталкивания за границы */
+  .rounded-3xl {
+    border-radius: 1.25rem;
+  }
+
+  /* Кнопки на смартфонах не должны распирать ширину экрана */
+  button, .btn {
+    max-width: 100%;
+    word-break: normal;
+  }
+
+  /* Карточки квиза на мобильном — компактные отступы */
+  .quiz-step button {
+    padding: 1rem !important;
+  }
+}

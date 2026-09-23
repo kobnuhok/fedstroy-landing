@@ -6,6 +6,24 @@
   html {
     scroll-behavior: smooth;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Безопасные переносы длинных слов и защита от вылезания текста из карточек */
+  h1, h2, h3, h4, h5, h6 {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    -webkit-hyphens: auto;
+    hyphens: auto;
+  }
+
+  p, span, li, a, label, strong, button {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
   }
 }
 
@@ -75,8 +93,8 @@ input[type="range"]::-moz-range-thumb {
 
 .quiz-card-selected {
   border-color: #ea580c !important;
-  background-color: #fff7ed !important;
-  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.15) !important;
+  background-color: rgba(234, 88, 12, 0.16) !important;
+  box-shadow: 0 0 0 1px #ea580c, 0 4px 16px rgba(234, 88, 12, 0.25) !important;
 }
 
 /* Floating Contact Dock */
