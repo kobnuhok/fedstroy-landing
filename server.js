@@ -1,6 +1,4 @@
-// =========================================================================
-// Сервер ООО «ФЕДСТРОЙ» — Обработка заявок, загрузка ТЗ и Telegram-бот
-// =========================================================================
+// Express API сервер ООО «ФЕДСТРОЙ»: прием заявок, валидация файлов и Telegram-уведомления.
 
 require('dotenv').config();
 const express = require('express');
@@ -12,12 +10,10 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Разрешаем CORS для отправки с GitHub Pages и локального хоста
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Директории для загрузок и данных
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const DATA_FILE = path.join(__dirname, 'data', 'leads.json');
 
@@ -25,7 +21,76 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(path.dirname(DATA_FILE))) fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
 if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]');
 
-// Настройка хранилища Multer для файлов ТЗ
+// Функция валидации сигнатур содержимого файлов (защита от подмены расширений)
+function validateFileContent(filePath, originalName) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(16);
+    const bytesRead = fs.readSync(fd, buffer, 0, 16, 0);
+    fs.closeSync(fd);
+
+    if (bytesRead < 2) return { valid: true };
+
+    // 1. Проверка на исполняемые файлы (Windows PE: MZ, Linux ELF: \x7fELF, shebang: #!)
+    const isPE = buffer[0] === 0x4D && buffer[1] === 0x5A; // MZ
+    const isELF = buffer[0] === 0x7F && buffer[1] === 0x45 && buffer[2] === 0x4C && buffer[3] === 0x46;
+    const isShebang = buffer[0] === 0x23 && buffer[1] === 0x21;
+
+    if (isPE || isELF || isShebang) {
+      return {
+        valid: false,
+        error: 'Обнаружен исполняемый файл или скрипт под видом проектной документации. Загрузка отклонена.'
+      };
+    }
+
+    const ext = path.extname(originalName).toLowerCase();
+    // 2. Проверка PDF
+    if (ext === '.pdf') {
+      const magic = buffer.subarray(0, 4).toString('ascii');
+      if (magic !== '%PDF') {
+        return { valid: false, error: 'Файл с расширением .pdf не содержит корректного заголовка документа PDF.' };
+      }
+    }
+
+    // 3. Проверка PNG
+    if (ext === '.png') {
+      if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4E || buffer[3] !== 0x47) {
+        return { valid: false, error: 'Файл с расширением .png поврежден или имеет неверный формат изображения.' };
+      }
+    }
+
+    // 4. Проверка JPG
+    if (ext === '.jpg' || ext === '.jpeg') {
+      if (buffer[0] !== 0xFF || buffer[1] !== 0xD8 || buffer[2] !== 0xFF) {
+        return { valid: false, error: 'Файл с расширением .jpg/.jpeg поврежден или имеет неверный формат изображения.' };
+      }
+    }
+
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, error: `Ошибка проверки файла: ${err.message}` };
+  }
+}
+
+// Атомарное сохранение заявки в leads.json
+function saveLead(newLead) {
+  let leads = [];
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+      leads = content ? JSON.parse(content) : [];
+    }
+  } catch (err) {
+    console.error('[leads:read:error]', err.message);
+  }
+
+  leads.unshift(newLead);
+  const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
+  fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
+  fs.renameSync(tempFile, DATA_FILE);
+}
+
+// Настройка хранилища Multer с защитой от коллизий имен файлов
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOADS_DIR);
@@ -35,7 +100,8 @@ const storage = multer.diskStorage({
     const ext = path.extname(safeName);
     const base = path.basename(safeName, ext).replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_');
     const timestamp = Date.now();
-    cb(null, `${timestamp}_${base}${ext}`);
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    cb(null, `${timestamp}_${randomSuffix}_${base}${ext}`);
   }
 });
 
@@ -71,12 +137,11 @@ async function sendToTelegram(lead, file) {
       lead.building ? `🏢 *Тип объекта:* ${lead.building}` : null,
       lead.source ? `📌 *Источник:* ${lead.source}` : null,
       lead.comment ? `💬 *Комментарий:* ${lead.comment}` : null,
-      file ? `📎 *Прикреплен файл ТЗ:* ${file.originalname} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : null,
+      file ? `📎 *Прикреплен файл ТЗ:* ${file.originalName} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : null,
       `━━━━━━━━━━━━━━━━━━━━`,
       `⏰ ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)`
     ].filter(Boolean).join('\n');
 
-    // 1. Отправляем текстовое сообщение
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,13 +152,12 @@ async function sendToTelegram(lead, file) {
       })
     });
 
-    // 2. Если есть прикрепленный файл ТЗ — отправляем документ
     if (file && fs.existsSync(file.path)) {
       const fileData = fs.readFileSync(file.path);
       const blob = new Blob([fileData]);
       const formData = new FormData();
       formData.append('chat_id', chatId);
-      formData.append('document', blob, Buffer.from(file.originalname, 'latin1').toString('utf8'));
+      formData.append('document', blob, Buffer.from(file.originalName, 'latin1').toString('utf8'));
       formData.append('caption', `ТЗ к заявке ${lead.leadId} от ${lead.name || lead.phone}`);
 
       await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
@@ -102,11 +166,10 @@ async function sendToTelegram(lead, file) {
       });
     }
   } catch (err) {
-    console.error('[Telegram Notify Error]:', err.message);
+    console.error('[telegram:notify:error]', err.message);
   }
 }
 
-// Эндпоинт проверки работоспособности
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -116,10 +179,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Эндпоинт приема заявок (поддерживает multipart/form-data и application/json)
 app.post('/api/lead', (req, res, next) => {
   upload.any()(req, res, (err) => {
     if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          error: 'Размер файла превышает лимит (35 МБ). Пожалуйста, оптимизируйте чертежи или отправьте ссылку на облачное хранилище.'
+        });
+      }
       return res.status(400).json({ success: false, error: `Ошибка загрузки файла: ${err.message}` });
     } else if (err) {
       return res.status(400).json({ success: false, error: err.message });
@@ -129,7 +197,7 @@ app.post('/api/lead', (req, res, next) => {
 }, async (req, res) => {
   try {
     const { name, phone, service, area, building, comment, source } = req.body;
-    const attachedFile = (req.files && req.files.length > 0) ? req.files[0] : null;
+    let attachedFile = (req.files && req.files.length > 0) ? req.files[0] : null;
 
     const phoneClean = (phone || '').replace(/\D/g, '');
     const isValidPhone = (phoneClean.length === 11 && (phoneClean.startsWith('7') || phoneClean.startsWith('8'))) ||
@@ -141,15 +209,32 @@ app.post('/api/lead', (req, res, next) => {
       });
     }
 
-    if (attachedFile && attachedFile.size === 0) {
-      try { fs.unlinkSync(attachedFile.path); } catch (_) {}
-      return res.status(400).json({
-        success: false,
-        error: 'Прикрепленный файл пуст (0 байт). Пожалуйста, выберите корректный файл проекта.'
-      });
+    if (attachedFile) {
+      const origName = attachedFile.originalname || '';
+      // Если файл не был выбран пользователем в форме (пустое имя)
+      if (!origName || origName === 'blob' && attachedFile.size === 0) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+        attachedFile = null;
+      } else if (attachedFile.size === 0) {
+        // Пользователь явно прикрепил пустой файл (0 байт)
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+        return res.status(400).json({
+          success: false,
+          error: 'Прикрепленный файл пуст (0 байт). Пожалуйста, выберите корректный файл проекта.'
+        });
+      } else {
+        // Проверка на подмену расширения / бинарную сигнатуру
+        const validation = validateFileContent(attachedFile.path, attachedFile.originalname);
+        if (!validation.valid) {
+          try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+          return res.status(400).json({
+            success: false,
+            error: validation.error
+          });
+        }
+      }
     }
 
-    // Генерация официального номера расчета
     const randomCode = Math.floor(1000 + Math.random() * 9000);
     const leadId = `ФС-${randomCode}`;
 
@@ -166,23 +251,13 @@ app.post('/api/lead', (req, res, next) => {
       file: attachedFile ? {
         originalName: Buffer.from(attachedFile.originalname, 'latin1').toString('utf8'),
         filename: attachedFile.filename,
-        size: attachedFile.size
+        size: attachedFile.size,
+        path: attachedFile.path
       } : null
     };
 
-    // Сохранение заявки в базу leads.json
-    try {
-      const currentLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8') || '[]');
-      currentLeads.unshift(newLead);
-      fs.writeFileSync(DATA_FILE, JSON.stringify(currentLeads, null, 2), 'utf8');
-    } catch (saveErr) {
-      console.error('[Database Save Error]:', saveErr.message);
-    }
-
-    // Асинхронная отправка в Telegram
-    sendToTelegram(newLead, attachedFile);
-
-    console.log(`[Новая заявка ${leadId}] Клиент: ${newLead.name || 'Без имени'}, Тел: ${newLead.phone}, Файл: ${newLead.file ? newLead.file.originalName : 'нет'}`);
+    saveLead(newLead);
+    sendToTelegram(newLead, newLead.file);
 
     return res.status(200).json({
       success: true,
@@ -190,7 +265,7 @@ app.post('/api/lead', (req, res, next) => {
       message: 'Заявка успешно зарегистрирована и передана инженеру ПТО.'
     });
   } catch (err) {
-    console.error('[Lead Process Error]:', err);
+    console.error('[lead:process:error]', err);
     return res.status(500).json({
       success: false,
       error: 'Произошла ошибка при обработке заявки на сервере. Пожалуйста, позвоните нам по номеру 8 (800) 700-02-23.'
@@ -198,11 +273,8 @@ app.post('/api/lead', (req, res, next) => {
   }
 });
 
-// Раздача статических файлов сайта
 app.use(express.static(__dirname));
 
-// Запуск сервера
 app.listen(PORT, () => {
   console.log(`[ООО «ФЕДСТРОЙ»] Сервер запущен: http://localhost:${PORT}`);
-  console.log(`[API Эндпоинт] POST http://localhost:${PORT}/api/lead`);
 });
