@@ -6,11 +6,24 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(cors());
+const ALLOWED_ORIGINS = [
+  'https://kobnuhok.github.io',
+  'https://ooofedstroy.ru',
+  'http://localhost:8080',
+  'http://localhost:3000'
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    // Разрешаем запросы без origin (curl, Postman, server-to-server) и известные origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} не разрешён`));
+  }
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -75,13 +88,12 @@ function validateFileContent(filePath, originalName) {
 // Атомарное сохранение заявки в leads.json
 function saveLead(newLead) {
   let leads = [];
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-      leads = content ? JSON.parse(content) : [];
+  if (fs.existsSync(DATA_FILE)) {
+    const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+    if (content) {
+      // Если файл повреждён — бросаем ошибку, не перезаписываем данные
+      leads = JSON.parse(content);
     }
-  } catch (err) {
-    console.error('[leads:read:error]', err.message);
   }
 
   leads.unshift(newLead);
@@ -114,7 +126,7 @@ const upload = multer({
     if (allowedExts.test(safeName)) {
       cb(null, true);
     } else {
-      cb(new Error('Недопустимый формат файла. Разрешены: .dwg, .pdf, .zip, .rar, .doc, .xls, .png, .jpg'));
+      cb(new Error('Недопустимый формат файла. Разрешены: .dwg, .pdf, .zip, .rar, .7z, .doc, .docx, .xls, .xlsx, .png, .jpg, .jpeg'));
     }
   }
 });
@@ -180,7 +192,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/lead', (req, res, next) => {
-  upload.any()(req, res, (err) => {
+  upload.single('attachment')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
@@ -197,7 +209,7 @@ app.post('/api/lead', (req, res, next) => {
 }, async (req, res) => {
   try {
     const { name, phone, service, area, building, comment, source } = req.body;
-    let attachedFile = (req.files && req.files.length > 0) ? req.files[0] : null;
+    let attachedFile = req.file || null;
 
     const phoneClean = (phone || '').replace(/\D/g, '');
     const isValidPhone = (phoneClean.length === 11 && (phoneClean.startsWith('7') || phoneClean.startsWith('8'))) ||
@@ -235,8 +247,9 @@ app.post('/api/lead', (req, res, next) => {
       }
     }
 
-    const randomCode = Math.floor(1000 + Math.random() * 9000);
-    const leadId = `ФС-${randomCode}`;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randomHex = crypto.randomBytes(4).toString('hex');
+    const leadId = `ФС-${dateStr}-${randomHex}`;
 
     const newLead = {
       leadId,

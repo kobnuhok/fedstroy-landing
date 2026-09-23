@@ -86,13 +86,38 @@ async function runAllTests() {
       if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
     });
 
-    await testCase('1.3. Размер: превышение лимита 35 МБ (36 МБ)', async () => {
+    await testCase('1.3. Размер: ровно 35 МБ (граница — допустимо)', async () => {
       const fd = new FormData();
-      fd.append('name', 'Тест превышение');
+      fd.append('name', 'Тест граница 35МБ');
       fd.append('phone', '+7 (916) 333-44-55');
-      // 36 МБ буфер
-      const largeBlob = new Blob([Buffer.alloc(36 * 1024 * 1024, 0x00)], { type: 'application/octet-stream' });
-      fd.append('attachment', largeBlob, 'huge_model.dwg');
+      const exactLimit = new Blob([Buffer.alloc(35 * 1024 * 1024, 0x20)], { type: 'application/octet-stream' });
+      fd.append('attachment', exactLimit, 'exact_limit.dwg');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 200) throw new Error(`Ожидался 200 (ровно лимит), получен ${res.status}`);
+    });
+
+    await testCase('1.4. Размер: 35 МБ + 1 байт (граница + 1 — должен отклонить)', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест граница + 1 байт');
+      fd.append('phone', '+7 (916) 344-55-66');
+      const overLimit = new Blob([Buffer.alloc(35 * 1024 * 1024 + 1, 0x20)], { type: 'application/octet-stream' });
+      fd.append('attachment', overLimit, 'over_limit.dwg');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 400) throw new Error(`Ожидался 400 (лимит + 1 байт), получен ${res.status}`);
+      const json = await res.json();
+      if (!json.error || !json.error.includes('35 МБ')) {
+        throw new Error(`Ожидалось сообщение о 35 МБ: ${json.error}`);
+      }
+    });
+
+    await testCase('1.5. Размер: 100 МБ (существенно больше лимита)', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест 100МБ');
+      fd.append('phone', '+7 (916) 355-66-77');
+      const hugeBlob = new Blob([Buffer.alloc(100 * 1024 * 1024, 0x00)], { type: 'application/octet-stream' });
+      fd.append('attachment', hugeBlob, 'huge_model.dwg');
 
       const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
       if (res.status !== 400) throw new Error(`Ожидался 400, получен ${res.status}`);
