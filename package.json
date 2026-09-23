@@ -4,9 +4,11 @@
   "description": "Официальный сайт СК ООО «ФЕДСТРОЙ» — Вентилируемые фасады, фальшполы и подсистемы",
   "main": "build.js",
   "scripts": {
+    "start": "node server.js",
     "build": "node build.js",
-    "dev": "node build.js --watch",
-    "serve": "python -m http.server 8080"
+    "build:css": "npx @tailwindcss/cli -i src/input.css -o css/tailwind.css --minify",
+    "dev": "node server.js",
+    "watch": "node build.js --watch"
   },
   "keywords": [
     "fedstroy",
@@ -15,5 +17,15 @@
     "construction"
   ],
   "author": "ООО «ФЕДСТРОЙ»",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "multer": "^2.4.0"
+  }
 }

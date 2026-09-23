@@ -1,3 +1,14 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment
+.env
+
+# Uploads and temporary data
+uploads/*
+!uploads/.gitkeep
+
 # Scratch extracted files
 extracted_*.txt
 falshpol_text.txt

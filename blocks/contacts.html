@@ -1,16 +1,16 @@
-<!-- ==================== CONTACTS & CTA SECTION ==================== -->
+<!-- Секция: Контакты и консультация инженера -->
   <section id="contacts" class="py-16 sm:py-24 xl:py-28 bg-white">
     <div class="page-container">
       
       <div class="grid lg:grid-cols-12 gap-12 xl:gap-16 2xl:gap-20 items-center">
         
         <div class="lg:col-span-6 space-y-6">
-          <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block">Контакты и консультация</span>
+          <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block">Контакты и ПТО</span>
           <h2 class="font-heading text-3xl sm:text-4xl xl:text-5xl font-extrabold text-slate-900 tracking-tight">
-            Свяжитесь напрямую с главным инженером проектов
+            Свяжитесь напрямую с инженерным отделом
           </h2>
           <p class="text-slate-600 text-sm sm:text-base leading-relaxed">
-            Ответим на технические вопросы, проконсультируем по узлам примыкания, ветровым нагрузкам и подберем оптимальный материал под ваш бюджет.
+            Ответим на технические вопросы, проконсультируем по узлам примыкания, ветровым нагрузкам по СП 20.13330 и подберем оптимальный материал под проект.
           </p>
 
           <div class="space-y-4 pt-2">
@@ -29,7 +29,7 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
               </div>
               <div>
-                <span class="text-xs text-slate-500 block">Прямой телефон инженера</span>
+                <span class="text-xs text-slate-500 block">Прямой телефон дежурного инженера</span>
                 <a href="tel:+79607440991" class="text-lg sm:text-xl font-bold font-heading text-slate-900 hover:text-brand-600 transition-colors">+7 (960) 744-09-91</a>
               </div>
             </div>
@@ -39,43 +39,66 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
               </div>
               <div>
-                <span class="text-xs text-slate-500 block">Чертежи и проектная документация</span>
+                <span class="text-xs text-slate-500 block">Прием чертежей и проектной документации</span>
                 <a href="mailto:ooofedstroy@mail.ru" class="text-base sm:text-lg font-bold font-heading text-slate-900 hover:text-brand-600 transition-colors">ooofedstroy@mail.ru</a>
               </div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+              <span>Официальная информация и выписки:</span>
+              <a href="./requisites.html" class="font-bold text-brand-600 hover:underline">Карточка реквизитов →</a>
             </div>
           </div>
         </div>
 
-        <!-- Contact Form Box -->
+        <!-- Форма обратной связи с загрузкой ТЗ -->
         <div class="lg:col-span-6 bg-surface-50 p-8 sm:p-12 rounded-3xl border border-slate-200 shadow-sm form-container">
-          <h3 class="font-heading text-2xl font-bold text-slate-900 mb-2">Быстрая консультация инженера</h3>
-          <p class="text-xs sm:text-sm text-slate-600 mb-6">Оставьте контактные данные — свяжемся в течение 25 минут для предварительного обсуждения объекта.</p>
+          <h3 class="font-heading text-2xl font-bold text-slate-900 mb-2">Техническая консультация инженера</h3>
+          <p class="text-xs sm:text-sm text-slate-600 mb-6">Оставьте контактные данные — инженер свяжется с вами в рабочее время (пн–пт с 9:00 до 18:00 МСК).</p>
 
           <form class="space-y-4 js-lead-form">
             <input type="hidden" name="source" value="Секция Контакты">
 
             <div>
               <label for="contact-name" class="block text-xs font-semibold text-slate-700 mb-1.5">Ваше имя / Должность</label>
-              <input type="text" id="contact-name" name="name" placeholder="Александр, главный инженер" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
+              <input type="text" id="contact-name" name="name" placeholder="Например: Александр, главный инженер" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
               <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-contact-name">Пожалуйста, укажите имя</p>
             </div>
 
             <div>
-              <label for="contact-phone" class="block text-xs font-semibold text-slate-700 mb-1.5">Номер телефона</label>
+              <label for="contact-phone" class="block text-xs font-semibold text-slate-700 mb-1.5">Номер телефона *</label>
               <input type="tel" id="contact-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
               <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-contact-phone">Укажите номер телефона</p>
+            </div>
+
+            <!-- Зона прикрепления ТЗ / чертежа -->
+            <div class="js-file-dropzone border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-white">
+              <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              
+              <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-500">
+                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Прикрепить ТЗ или чертежи (.pdf, .dwg, .zip до 35 МБ)</span>
+              </div>
+
+              <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-800 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+                <span class="text-slate-500 text-[11px] js-file-size ml-2"></span>
+                <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-500 p-1 font-bold">✕</button>
+              </div>
+
+              <p class="js-file-error text-[11px] text-red-500 mt-1 hidden"></p>
             </div>
 
             <div class="flex items-start gap-2.5 pt-1">
               <input type="checkbox" id="contact-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
               <label for="contact-agree" class="text-xs text-slate-600 leading-tight">
-                Согласен на обработку персональных данных в соответствии с Федеральным законом № 152-ФЗ
+                Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой данных</a> (152-ФЗ)
               </label>
             </div>
             <p class="error-msg text-xs text-red-500 hidden" id="error-contact-agree">Необходимо подтвердить согласие</p>
 
-            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm">
-              Отправить заявку
+            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer">
+              Отправить заявку в ПТО
             </button>
           </form>
         </div>

@@ -14,49 +14,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Onest:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            heading: ['Onest', 'Inter', 'sans-serif'],
-          },
-          colors: {
-            brand: {
-              50: '#fff7ed',
-              100: '#ffedd5',
-              400: '#fb923c',
-              500: '#f97316',
-              600: '#ea580c',
-              700: '#c2410c',
-              800: '#9a3412',
-              900: '#7c2d12',
-            },
-            surface: {
-              50: '#f8fafc',
-              100: '#f1f5f9',
-              800: '#1e293b',
-              900: '#0f172a',
-              950: '#020617',
-            }
-          },
-          screens: {
-            'xs': '480px',
-            'sm': '640px',
-            'md': '768px',
-            'lg': '1024px',
-            'xl': '1280px',
-            '2xl': '1536px',
-            '3xl': '1920px',
-            '4xl': '2400px',
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Локальный Tailwind CSS -->
+  <link rel="stylesheet" href="./css/tailwind.css">
   <!-- Стили: Базовые компоненты и Адаптивная верстка (разделены) -->
   <link rel="stylesheet" href="./css/style.css">
   <link rel="stylesheet" href="./css/adaptive.css">
@@ -64,7 +23,7 @@
 <body class="bg-surface-50 text-slate-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
 
   
-  <!-- Block Start: blocks/header.html -->
+  <!-- Block: blocks/header.html -->
 <!-- ==================== TOP BAR & HEADER ==================== -->
   <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all shadow-sm">
     <!-- Top info ribbon -->
@@ -122,6 +81,7 @@
           <a href="#systems" class="hover:text-brand-600 transition-colors">Подсистемы</a>
           <a href="#portfolio" class="hover:text-brand-600 transition-colors">Объекты (фото)</a>
           <a href="#compliance" class="hover:text-brand-600 transition-colors">СРО и ГОСТ</a>
+          <a href="./requisites.html" class="hover:text-brand-600 transition-colors">Реквизиты</a>
           <a href="#contacts" class="hover:text-brand-600 transition-colors">Контакты</a>
         </nav>
 
@@ -131,7 +91,7 @@
             <a href="tel:+78007000223" class="block font-heading font-extrabold text-slate-900 text-lg xl:text-xl hover:text-brand-600 transition-colors leading-tight">8 (800) 700-02-23</a>
             <span class="text-xs text-slate-500 block">Бесплатный звонок по РФ</span>
           </div>
-          <button type="button" class="js-open-modal px-5 py-3 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-sm font-bold rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2">
+          <button type="button" class="js-open-modal px-5 py-3 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-sm font-bold rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 cursor-pointer">
             Запрос расчета КП
           </button>
         </div>
@@ -156,6 +116,7 @@
       <a href="#systems" class="block py-2 text-base font-semibold text-slate-800">Подсистемы</a>
       <a href="#portfolio" class="block py-2 text-base font-semibold text-slate-800">Объекты (фотогалерея)</a>
       <a href="#compliance" class="block py-2 text-base font-semibold text-slate-800">СРО и гарантии</a>
+      <a href="./requisites.html" class="block py-2 text-base font-semibold text-brand-600">Реквизиты организации</a>
       <a href="#contacts" class="block py-2 text-base font-semibold text-slate-800">Контакты</a>
       <div class="pt-4 border-t border-slate-100 flex flex-col gap-3">
         <a href="tel:+78007000223" class="text-center font-bold text-slate-900 text-lg">8 (800) 700-02-23</a>
@@ -164,14 +125,13 @@
       </div>
     </div>
   </header>
-  <!-- Block End: blocks/header.html -->
 
   
-  <!-- Block Start: blocks/hero.html -->
-<!-- ==================== HERO SECTION (Clean, 100% Readable, No Grid lines!) ==================== -->
+  <!-- Block: blocks/hero.html -->
+<!-- Hero Section -->
   <section class="relative bg-slate-950 text-white overflow-hidden py-16 sm:py-24 xl:py-28 2xl:py-32 border-b border-slate-800">
     
-    <!-- Authentic background architectural photo with high-contrast gradient overlay (NO checkered grid!) -->
+    <!-- Фоновое изображение объекта с затемнением -->
     <div class="absolute inset-0 z-0">
       <img src="https://static.tildacdn.com/tild3935-3830-4265-b131-653231303638/photo_2025-10-04_10-.jpg" alt="Объект ООО Федстрой" class="w-full h-full object-cover object-center opacity-25">
       <div class="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/95 to-slate-950/80"></div>
@@ -285,10 +245,9 @@
       </div>
     </div>
   </section>
-  <!-- Block End: blocks/hero.html -->
 
   
-  <!-- Block Start: blocks/about.html -->
+  <!-- Block: blocks/about.html -->
 <!-- ==================== ABOUT COMPANY (Real text and photos from ooofedstroy.ru) ==================== -->
   <section id="about" class="py-16 sm:py-24 xl:py-28 bg-white border-b border-slate-200">
     <div class="page-container">
@@ -362,10 +321,9 @@
 
     </div>
   </section>
-  <!-- Block End: blocks/about.html -->
 
   
-  <!-- Block Start: blocks/services.html -->
+  <!-- Block: blocks/services.html -->
 <!-- ==================== SERVICES & TECHNICAL SOLUTIONS (Real Photos) ==================== -->
   <section id="services" class="py-16 sm:py-24 xl:py-28 bg-surface-50 border-b border-slate-200">
     <div class="page-container">
@@ -544,10 +502,9 @@
       </div>
     </div>
   </section>
-  <!-- Block End: blocks/services.html -->
 
   
-  <!-- Block Start: blocks/quiz.html -->
+  <!-- Block: blocks/quiz.html -->
 <!-- ==================== 5-STEP INTERACTIVE QUIZ ESTIMATOR ==================== -->
   <section id="quiz" class="py-16 sm:py-24 xl:py-28 bg-slate-900 text-white relative overflow-hidden">
     <!-- Subtle gradient accents -->
@@ -842,13 +799,13 @@
               </div>
             </div>
 
-            <!-- Lock-in Contact Form -->
+            <!-- Форма отправки сметы и загрузка ТЗ -->
             <div class="lg:col-span-6 bg-white text-slate-900 rounded-2xl p-6 sm:p-7 shadow-xl">
               <h4 class="font-heading font-bold text-xl text-slate-900 mb-1">
                 Получить официальное КП с узлами
               </h4>
               <p class="text-slate-600 text-xs sm:text-sm mb-5">
-                Инженер ПТО ООО «ФЕДСТРОЙ» вышлет детальную смету в PDF/Excel и свяжется в течение 25 минут:
+                Инженер ПТО ООО «ФЕДСТРОЙ» вышлет детальную спецификацию и свяжется в рабочее время:
               </p>
 
               <form class="js-lead-form space-y-4">
@@ -861,21 +818,39 @@
                 </div>
 
                 <div>
-                  <label for="quiz-phone" class="block text-xs font-bold text-slate-700 uppercase mb-1">Телефон для отправки сметы *</label>
+                  <label for="quiz-phone" class="block text-xs font-bold text-slate-700 uppercase mb-1">Телефон для связи *</label>
                   <input type="tel" id="quiz-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
                   <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-quiz-phone">Укажите корректный номер телефона</p>
+                </div>
+
+                <!-- Прикрепление чертежей/ТЗ -->
+                <div class="js-file-dropzone border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-slate-50/70">
+                  <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                  
+                  <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-500">
+                    <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                    <span>Прикрепить ТЗ / чертеж (.dwg, .pdf, .zip до 35 МБ)</span>
+                  </div>
+
+                  <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                    <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+                    <span class="text-slate-500 text-[11px] js-file-size ml-2"></span>
+                    <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-500 p-1 font-bold">✕</button>
+                  </div>
+
+                  <p class="js-file-error text-[11px] text-red-500 mt-1 hidden"></p>
                 </div>
 
                 <div class="flex items-start gap-2.5 pt-1">
                   <input type="checkbox" id="quiz-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
                   <label for="quiz-agree" class="text-xs text-slate-600 leading-tight">
-                    Согласен на обработку персональных данных (152-ФЗ) и получение расчетной сметы
+                    Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой персональных данных</a> (152-ФЗ)
                   </label>
                 </div>
                 <p class="error-msg text-xs text-red-500 hidden" id="error-quiz-agreement">Требуется согласие</p>
 
-                <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md">
-                  Получить смету со скидкой 5%
+                <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md cursor-pointer">
+                  Получить расчет инженера ПТО
                 </button>
               </form>
             </div>
@@ -900,30 +875,29 @@
 
     </div>
   </section>
-  <!-- Block End: blocks/quiz.html -->
 
   
-  <!-- Block Start: blocks/calculator.html -->
-<!-- ==================== INTERACTIVE B2B CALCULATOR ==================== -->
+  <!-- Block: blocks/calculator.html -->
+<!-- Секция: Ориентировочный расчет сметы -->
   <section id="calculator" class="py-16 sm:py-24 xl:py-28 bg-white border-b border-slate-200">
     <div class="page-container">
       
-      <div class="text-center max-w-4xl mx-auto mb-14 sm:mb-16">
-        <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block mb-2">Инженерный калькулятор сметы</span>
+      <div class="text-center max-w-4xl mx-auto mb-12 sm:mb-14">
+        <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block mb-2">Предварительная смета</span>
         <h2 class="font-heading text-3xl sm:text-4xl xl:text-5xl font-extrabold text-slate-900 tracking-tight">
-          Онлайн-расчет стоимости объекта
+          Ориентировочный расчет стоимости подсистемы и материалов
         </h2>
         <p class="text-slate-600 mt-3 text-base sm:text-lg">
-          Выберите параметры здания — калькулятор сформирует сметную вилку бюджета с учетом цен металлопроката и комплектующих на текущий месяц.
+          Укажите параметры здания — калькулятор сформирует предварительную вилку бюджета с разбивкой по подсистеме, облицовке и комплектующим.
         </p>
       </div>
 
       <div class="grid lg:grid-cols-12 gap-8 xl:gap-12 items-start">
         
-        <!-- Calculator Controls Form -->
-        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+        <!-- Элементы управления калькулятором -->
+        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-7">
           
-          <!-- System Type -->
+          <!-- 1. Тип системы -->
           <div>
             <label class="block text-sm font-bold text-slate-900 mb-3">1. Тип строительной системы</label>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -942,13 +916,13 @@
               <label class="cursor-pointer col-span-2 sm:col-span-1">
                 <input type="radio" name="system-type" value="complex" class="peer sr-only">
                 <div class="p-3.5 text-center rounded-2xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 transition-all font-semibold text-xs sm:text-sm">
-                  Фасад + Потолки
+                  Комплекс (под ключ)
                 </div>
               </label>
             </div>
           </div>
 
-          <!-- Area Slider & Quick Presets -->
+          <!-- 2. Площадь -->
           <div>
             <div class="flex justify-between items-center mb-2">
               <label for="calc-area" class="text-sm font-bold text-slate-900">2. Площадь объекта (м²)</label>
@@ -956,7 +930,6 @@
             </div>
             <input type="range" id="calc-area" min="100" max="6000" step="50" value="650" class="w-full h-2.5 rounded-lg" aria-label="Площадь объекта в квадратных метрах">
             
-            <!-- Quick preset buttons -->
             <div class="flex items-center gap-2 mt-3 flex-wrap">
               <span class="text-xs text-slate-500 mr-1">Быстрый выбор:</span>
               <button type="button" class="js-area-preset px-3 py-1 bg-white border border-slate-200 hover:border-brand-500 rounded-lg text-xs font-semibold text-slate-700 transition-colors" data-area="250">250 м²</button>
@@ -967,21 +940,19 @@
             </div>
           </div>
 
-          <!-- Materials and Subsystems 2-Col Grid -->
+          <!-- 3. Материал и металл -->
           <div class="grid sm:grid-cols-2 gap-6">
-            <!-- Material Selection -->
             <div>
-              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">3. Материал облицовки / плит</label>
+              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">3. Материал облицовки</label>
               <select id="calc-material" class="w-full p-3.5 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
                 <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
                 <option value="composite">Алюминиевый композит (АКП)</option>
                 <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
                 <option value="fibrocement">Фиброцементные плиты (в массе)</option>
-                <option value="hpl">HPL-панели (высокое давление)</option>
+                <option value="hpl">HPL-панели (ламинат высокого давления)</option>
               </select>
             </div>
 
-            <!-- Subsystem Metal Selection -->
             <div>
               <label class="block text-sm font-bold text-slate-900 mb-2">4. Металл подсистемы</label>
               <div class="grid grid-cols-3 gap-2 text-xs sm:text-sm">
@@ -1007,66 +978,107 @@
             </div>
           </div>
 
-          <!-- Installation work checkbox -->
-          <div class="pt-2 border-t border-slate-200">
+          <!-- Опции: Утеплитель и Монтаж -->
+          <div class="pt-3 border-t border-slate-200 space-y-3">
+            <label class="flex items-center gap-3.5 cursor-pointer">
+              <input type="checkbox" id="calc-insulation" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
+              <span class="text-sm text-slate-800 font-medium">Теплоизоляция: минераловатные плиты 100 мм + гидроветрозащитная мембрана (+550 ₽/м²)</span>
+            </label>
             <label class="flex items-center gap-3.5 cursor-pointer">
               <input type="checkbox" id="calc-install" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
-              <span class="text-sm text-slate-800 font-medium">Включить монтажные работы «под ключ» бригадой с допуском (+1 450 ₽/м²)</span>
+              <span class="text-sm text-slate-800 font-medium">Строительно-монтажные работы бригадами с допуском СРО (+1 450 ₽/м²)</span>
             </label>
+          </div>
+
+          <!-- Инженерный дисклеймер -->
+          <div class="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900 leading-relaxed">
+            <svg class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+              <strong class="block mb-0.5">Внимание: расчет носит ориентировочный характер</strong>
+              Точная сметная стоимость формируется инженерами ПТО ООО «ФЕДСТРОЙ» после геодезической 3D-съемки несущих стен, статического расчета ветровых нагрузок по СП 20.13330.2016 и согласования раскладки КМД.
+            </div>
           </div>
 
         </div>
 
-        <!-- Calculated Summary Card & Lead Form -->
-        <div class="lg:col-span-5 2xl:col-span-5 bg-surface-900 text-white p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-800 shadow-2xl form-container sticky top-28">
-          <div class="border-b border-slate-800 pb-6 mb-6">
-            <span class="text-xs uppercase tracking-wider text-slate-400 font-bold block mb-1.5">Ориентировочная стоимость</span>
-            <div class="text-4xl sm:text-5xl 2xl:text-6xl font-black font-heading text-brand-500 tracking-tight" id="calc-total-min">1 850 000 ₽</div>
+        <!-- Итоговая карточка расчета и форма отправки -->
+        <div class="lg:col-span-5 2xl:col-span-5 bg-surface-900 text-white p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-800 shadow-2xl form-container sticky top-28 space-y-6">
+          
+          <div class="border-b border-slate-800 pb-5">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs uppercase tracking-wider text-slate-400 font-bold">Ориентировочный бюджет:</span>
+              <span class="text-xs text-emerald-400 font-semibold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">Цены за квартал</span>
+            </div>
+            <div class="text-4xl sm:text-5xl font-black font-heading text-brand-500 tracking-tight" id="calc-total-min">1 850 000 ₽</div>
             <div class="text-xs sm:text-sm text-slate-400 mt-2 flex justify-between items-center">
-              <span>Предельная планка: <strong class="text-slate-200" id="calc-total-max">2 450 000 ₽</strong></span>
+              <span>Вилка до: <strong class="text-slate-200" id="calc-total-max">2 450 000 ₽</strong></span>
               <span id="calc-per-meter" class="text-slate-300 font-mono font-bold bg-slate-800 px-2.5 py-1 rounded">от 2 850 ₽/м²</span>
             </div>
           </div>
 
-          <!-- Key Project Estimates -->
-          <div class="grid grid-cols-2 gap-4 mb-6 text-xs sm:text-sm text-slate-300">
-            <div class="bg-surface-800/90 p-4 rounded-2xl border border-slate-700/80">
-              <span class="text-slate-400 block mb-1 text-xs">Расчетный срок:</span>
-              <span class="font-bold text-white text-sm sm:text-base" id="calc-duration">12–16 раб. дней</span>
+          <!-- Детализация статей расходов -->
+          <div class="space-y-2 text-xs text-slate-300 bg-surface-800/80 p-4 rounded-2xl border border-slate-700/80">
+            <span class="font-bold text-white block mb-1 text-xs uppercase tracking-wider">Структура сметы:</span>
+            <div class="flex justify-between py-1 border-b border-slate-700/60">
+              <span class="text-slate-400">Подсистема и крепеж:</span>
+              <span id="calc-breakdown-subsystem" class="font-semibold text-white">от 552 500 ₽</span>
             </div>
-            <div class="bg-surface-800/90 p-4 rounded-2xl border border-slate-700/80">
-              <span class="text-slate-400 block mb-1 text-xs">Пакет документов:</span>
-              <span class="font-bold text-white text-sm sm:text-base">Паспорт + СРО</span>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-400">Облицовочный материал:</span>
+              <span id="calc-breakdown-cladding" class="font-semibold text-white">от 1 170 000 ₽</span>
+            </div>
+            <div class="flex justify-between py-1 border-t border-slate-700/60 text-slate-400">
+              <span>Сроки поставки/монтажа:</span>
+              <span id="calc-duration" class="font-bold text-brand-400">12–16 раб. дней</span>
             </div>
           </div>
 
-          <!-- Lock Estimate Form -->
+          <!-- Форма отправки расчета в ПТО с загрузкой ТЗ -->
           <form class="space-y-4 js-lead-form">
-            <input type="hidden" name="source" value="Калькулятор стоимости">
+            <input type="hidden" name="source" value="Калькулятор ориентировочной сметы">
+
             <div>
-              <label for="lead-name" class="block text-xs font-semibold text-slate-300 mb-1.5">Ваше имя / Компания</label>
-              <input type="text" id="lead-name" name="name" placeholder="Константин, ООО «Монолит»" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-name">Укажите контактное лицо</p>
+              <label for="lead-name" class="block text-xs font-semibold text-slate-300 mb-1">Имя контактного лица / Компания</label>
+              <input type="text" id="lead-name" name="name" placeholder="Например: Сергей, ООО «СтройГрупп»" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-lead-name">Укажите контактное лицо</p>
             </div>
 
             <div>
-              <label for="lead-phone" class="block text-xs font-semibold text-slate-300 mb-1.5">Телефон для получения официального КП</label>
+              <label for="lead-phone" class="block text-xs font-semibold text-slate-300 mb-1">Номер телефона для связи *</label>
               <input type="tel" id="lead-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-phone">Введите корректный номер телефона</p>
+              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-lead-phone">Введите корректный номер телефона</p>
+            </div>
+
+            <!-- Зона прикрепления ТЗ / чертежей -->
+            <div class="js-file-dropzone border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-surface-800/40">
+              <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              
+              <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-400">
+                <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Прикрепить чертеж КМ/АР или ТЗ (.pdf, .dwg, .zip до 35 МБ)</span>
+              </div>
+
+              <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-200 bg-surface-800 px-3 py-1.5 rounded-lg">
+                <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+                <span class="text-slate-400 text-[11px] js-file-size ml-2"></span>
+                <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-400 p-1 font-bold">✕</button>
+              </div>
+
+              <p class="js-file-error text-[11px] text-red-400 mt-1 hidden"></p>
             </div>
 
             <div class="flex items-start gap-2.5 pt-1">
               <input type="checkbox" id="calc-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-700 bg-surface-800 focus:ring-brand-500" checked>
               <label for="calc-agree" class="text-xs text-slate-400 leading-tight">
-                Согласен на обработку персональных данных (152-ФЗ) и получение расчетной сметы
+                Согласен с <a href="./privacy.html" target="_blank" class="text-slate-300 underline hover:text-white">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-slate-300 underline hover:text-white">обработкой персональных данных</a> (152-ФЗ)
               </label>
             </div>
-            <p class="error-msg text-xs text-red-400 hidden" id="error-agreement">Необходимо подтвердить согласие</p>
+            <p class="error-msg text-xs text-red-400 hidden" id="error-calc-agree">Необходимо подтвердить согласие</p>
 
-            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base uppercase tracking-wider">
-              Зафиксировать расчет в смету
+            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base uppercase tracking-wider cursor-pointer">
+              Передать расчет инженеру ПТО
             </button>
-            <span class="block text-xs text-center text-slate-500">Фиксация стоимости по расчету действует 30 дней</span>
+            <span class="block text-[11px] text-center text-slate-500">Свяжемся в рабочее время для согласования узлов</span>
           </form>
 
         </div>
@@ -1074,10 +1086,9 @@
       </div>
     </div>
   </section>
-  <!-- Block End: blocks/calculator.html -->
 
   
-  <!-- Block Start: blocks/systems.html -->
+  <!-- Block: blocks/systems.html -->
 <!-- ==================== SECTION: SUBSYSTEMS & PRODUCTION ==================== -->
   <section id="systems" class="py-16 sm:py-24 xl:py-28 bg-white border-b border-slate-200">
     <div class="page-container">
@@ -1170,10 +1181,9 @@
 
     </div>
   </section>
-  <!-- Block End: blocks/systems.html -->
 
   
-  <!-- Block Start: blocks/portfolio.html -->
+  <!-- Block: blocks/portfolio.html -->
 <!-- ==================== REAL CASE STUDIES / PHOTO GALLERY (12 REAL PHOTOS) ==================== -->
   <section id="portfolio" class="py-16 sm:py-24 xl:py-28 bg-surface-50 border-b border-slate-200">
     <div class="page-container">
@@ -1460,10 +1470,9 @@
 
     </div>
   </section>
-  <!-- Block End: blocks/portfolio.html -->
 
   
-  <!-- Block Start: blocks/compliance.html -->
+  <!-- Block: blocks/compliance.html -->
 <!-- ==================== B2B TRUST & COMPLIANCE ==================== -->
   <section id="compliance" class="py-16 sm:py-24 xl:py-28 bg-surface-900 text-white border-b border-slate-800">
     <div class="page-container">
@@ -1555,23 +1564,22 @@
       </div>
     </div>
   </section>
-  <!-- Block End: blocks/compliance.html -->
 
   
-  <!-- Block Start: blocks/contacts.html -->
-<!-- ==================== CONTACTS & CTA SECTION ==================== -->
+  <!-- Block: blocks/contacts.html -->
+<!-- Секция: Контакты и консультация инженера -->
   <section id="contacts" class="py-16 sm:py-24 xl:py-28 bg-white">
     <div class="page-container">
       
       <div class="grid lg:grid-cols-12 gap-12 xl:gap-16 2xl:gap-20 items-center">
         
         <div class="lg:col-span-6 space-y-6">
-          <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block">Контакты и консультация</span>
+          <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block">Контакты и ПТО</span>
           <h2 class="font-heading text-3xl sm:text-4xl xl:text-5xl font-extrabold text-slate-900 tracking-tight">
-            Свяжитесь напрямую с главным инженером проектов
+            Свяжитесь напрямую с инженерным отделом
           </h2>
           <p class="text-slate-600 text-sm sm:text-base leading-relaxed">
-            Ответим на технические вопросы, проконсультируем по узлам примыкания, ветровым нагрузкам и подберем оптимальный материал под ваш бюджет.
+            Ответим на технические вопросы, проконсультируем по узлам примыкания, ветровым нагрузкам по СП 20.13330 и подберем оптимальный материал под проект.
           </p>
 
           <div class="space-y-4 pt-2">
@@ -1590,7 +1598,7 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
               </div>
               <div>
-                <span class="text-xs text-slate-500 block">Прямой телефон инженера</span>
+                <span class="text-xs text-slate-500 block">Прямой телефон дежурного инженера</span>
                 <a href="tel:+79607440991" class="text-lg sm:text-xl font-bold font-heading text-slate-900 hover:text-brand-600 transition-colors">+7 (960) 744-09-91</a>
               </div>
             </div>
@@ -1600,43 +1608,66 @@
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
               </div>
               <div>
-                <span class="text-xs text-slate-500 block">Чертежи и проектная документация</span>
+                <span class="text-xs text-slate-500 block">Прием чертежей и проектной документации</span>
                 <a href="mailto:ooofedstroy@mail.ru" class="text-base sm:text-lg font-bold font-heading text-slate-900 hover:text-brand-600 transition-colors">ooofedstroy@mail.ru</a>
               </div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+              <span>Официальная информация и выписки:</span>
+              <a href="./requisites.html" class="font-bold text-brand-600 hover:underline">Карточка реквизитов →</a>
             </div>
           </div>
         </div>
 
-        <!-- Contact Form Box -->
+        <!-- Форма обратной связи с загрузкой ТЗ -->
         <div class="lg:col-span-6 bg-surface-50 p-8 sm:p-12 rounded-3xl border border-slate-200 shadow-sm form-container">
-          <h3 class="font-heading text-2xl font-bold text-slate-900 mb-2">Быстрая консультация инженера</h3>
-          <p class="text-xs sm:text-sm text-slate-600 mb-6">Оставьте контактные данные — свяжемся в течение 25 минут для предварительного обсуждения объекта.</p>
+          <h3 class="font-heading text-2xl font-bold text-slate-900 mb-2">Техническая консультация инженера</h3>
+          <p class="text-xs sm:text-sm text-slate-600 mb-6">Оставьте контактные данные — инженер свяжется с вами в рабочее время (пн–пт с 9:00 до 18:00 МСК).</p>
 
           <form class="space-y-4 js-lead-form">
             <input type="hidden" name="source" value="Секция Контакты">
 
             <div>
               <label for="contact-name" class="block text-xs font-semibold text-slate-700 mb-1.5">Ваше имя / Должность</label>
-              <input type="text" id="contact-name" name="name" placeholder="Александр, главный инженер" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
+              <input type="text" id="contact-name" name="name" placeholder="Например: Александр, главный инженер" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
               <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-contact-name">Пожалуйста, укажите имя</p>
             </div>
 
             <div>
-              <label for="contact-phone" class="block text-xs font-semibold text-slate-700 mb-1.5">Номер телефона</label>
+              <label for="contact-phone" class="block text-xs font-semibold text-slate-700 mb-1.5">Номер телефона *</label>
               <input type="tel" id="contact-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
               <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-contact-phone">Укажите номер телефона</p>
+            </div>
+
+            <!-- Зона прикрепления ТЗ / чертежа -->
+            <div class="js-file-dropzone border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-white">
+              <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              
+              <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-500">
+                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Прикрепить ТЗ или чертежи (.pdf, .dwg, .zip до 35 МБ)</span>
+              </div>
+
+              <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-800 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+                <span class="text-slate-500 text-[11px] js-file-size ml-2"></span>
+                <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-500 p-1 font-bold">✕</button>
+              </div>
+
+              <p class="js-file-error text-[11px] text-red-500 mt-1 hidden"></p>
             </div>
 
             <div class="flex items-start gap-2.5 pt-1">
               <input type="checkbox" id="contact-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
               <label for="contact-agree" class="text-xs text-slate-600 leading-tight">
-                Согласен на обработку персональных данных в соответствии с Федеральным законом № 152-ФЗ
+                Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой данных</a> (152-ФЗ)
               </label>
             </div>
             <p class="error-msg text-xs text-red-500 hidden" id="error-contact-agree">Необходимо подтвердить согласие</p>
 
-            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm">
-              Отправить заявку
+            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer">
+              Отправить заявку в ПТО
             </button>
           </form>
         </div>
@@ -1644,39 +1675,36 @@
       </div>
     </div>
   </section>
-  <!-- Block End: blocks/contacts.html -->
 
   
-  <!-- Block Start: blocks/footer.html -->
-<!-- ==================== FOOTER ==================== -->
+  <!-- Block: blocks/footer.html -->
+<!-- Подвал сайта -->
   <footer class="bg-surface-950 text-slate-400 pt-16 pb-12 border-t border-slate-800">
     <div class="page-container">
       
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 xl:gap-12 pb-12">
         
-        <!-- Col 1: Brand & Details -->
+        <!-- Колонка 1: О компании и реквизиты -->
         <div class="space-y-4">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-brand-500 border border-slate-800">
-              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                <polyline points="2 17 12 22 22 17"></polyline>
-                <polyline points="2 12 12 17 22 12"></polyline>
-              </svg>
+            <div class="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center text-brand-500 border border-slate-800 font-black text-xl">
+              Ф
             </div>
             <span class="font-heading text-xl font-bold text-white tracking-tight">ООО «ФЕДСТРОЙ»</span>
           </div>
           <p class="text-xs text-slate-400 leading-relaxed">
-            Проектирование, собственное производство подсистем и монтаж вентилируемых фасадов и фальшполов любой категории сложности.
+            Проектирование, производство металлических подсистем и монтаж вентилируемых фасадов и фальшполов.
           </p>
           <div class="text-xs text-slate-400 font-mono space-y-1">
             <div>ИНН: 7751382243 • ОГРН: 1267700004098</div>
             <div>КПП: 775101001</div>
-            <div>Официальный сайт: <span class="text-slate-300">ooofedstroy.ru</span></div>
+            <div class="pt-1">
+              <a href="./requisites.html" class="text-brand-400 hover:text-brand-300 underline font-sans text-xs">Карточка реквизитов организации →</a>
+            </div>
           </div>
         </div>
 
-        <!-- Col 2: Phones & Dispatch -->
+        <!-- Колонка 2: Телефоны -->
         <div class="space-y-3">
           <h4 class="font-bold text-white text-sm tracking-wider uppercase">Отдел продаж и ПТО</h4>
           <div>
@@ -1685,63 +1713,65 @@
           </div>
           <div>
             <a href="tel:+79607440991" class="block text-slate-200 font-semibold text-base hover:text-brand-500 transition-colors">+7 (960) 744-09-91</a>
-            <span class="text-xs text-slate-400">Прямой телефон инженера</span>
+            <span class="text-xs text-slate-400">Дежурный инженер (пн–пт 9:00–18:00)</span>
           </div>
         </div>
 
-        <!-- Col 3: Messengers & Email -->
+        <!-- Колонка 3: Документация и мессенджеры -->
         <div class="space-y-3">
-          <h4 class="font-bold text-white text-sm tracking-wider uppercase">Связь и документация</h4>
-          <p class="text-xs text-slate-400">Отправьте чертежи КМД / ТЗ на почту:</p>
+          <h4 class="font-bold text-white text-sm tracking-wider uppercase">Прием чертежей и ТЗ</h4>
+          <p class="text-xs text-slate-400">Направить проектную документацию на расчет:</p>
           <a href="mailto:ooofedstroy@mail.ru" class="inline-block text-white font-semibold text-sm hover:underline hover:text-brand-500 transition-colors">ooofedstroy@mail.ru</a>
-          <div class="pt-2 flex gap-3">
-            <a href="https://t.me/Lexus2026" target="_blank" rel="noopener" class="px-3.5 py-2 bg-surface-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 text-xs font-medium inline-flex items-center gap-2 transition-colors">
-              <svg class="w-4 h-4 fill-current text-sky-400" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18.718-1.53 7.151-2.22 10.428-.291 1.383-.873 1.847-1.442 1.895-1.237.104-2.176-.79-3.376-1.576-1.879-1.232-2.94-1.999-4.763-3.199-2.106-1.388-.74-2.151.46-3.391.314-.324 5.767-5.284 5.872-5.733.013-.056.024-.265-.1-.375-.125-.11-.309-.072-.442-.042-.189.043-3.208 2.039-9.055 5.986-.856.588-1.631.876-2.324.861-.764-.017-2.235-.432-3.328-.788-1.341-.437-2.408-.668-2.315-1.411.049-.387.583-.784 1.602-1.192 6.273-2.733 10.457-4.536 12.551-5.412 5.978-2.497 7.221-2.932 8.03-2.946.178-.003.575.041.833.25.218.176.278.414.307.581.029.167.065.543.036.877z"/></svg>
-              Telegram-инженер
+          <div class="pt-2 flex flex-wrap gap-2.5">
+            <a href="https://t.me/Lexus2026" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-surface-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 text-xs font-medium inline-flex items-center gap-2 transition-colors">
+              <svg class="w-3.5 h-3.5 fill-current text-sky-400" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18.718-1.53 7.151-2.22 10.428-.291 1.383-.873 1.847-1.442 1.895-1.237.104-2.176-.79-3.376-1.576-1.879-1.232-2.94-1.999-4.763-3.199-2.106-1.388-.74-2.151.46-3.391.314-.324 5.767-5.284 5.872-5.733.013-.056.024-.265-.1-.375-.125-.11-.309-.072-.442-.042-.189.043-3.208 2.039-9.055 5.986-.856.588-1.631.876-2.324.861-.764-.017-2.235-.432-3.328-.788-1.341-.437-2.408-.668-2.315-1.411.049-.387.583-.784 1.602-1.192 6.273-2.733 10.457-4.536 12.551-5.412 5.978-2.497 7.221-2.932 8.03-2.946.178-.003.575.041.833.25.218.176.278.414.307.581.029.167.065.543.036.877z"/></svg>
+              Telegram @Lexus2026
+            </a>
+            <a href="https://wa.me/79607440991" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-surface-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 text-xs font-medium inline-flex items-center gap-2 transition-colors">
+              WhatsApp
             </a>
           </div>
         </div>
 
-        <!-- Col 4: Production & Office -->
+        <!-- Колонка 4: Адреса -->
         <div class="space-y-3">
-          <h4 class="font-bold text-white text-sm tracking-wider uppercase">Офис и склад</h4>
+          <h4 class="font-bold text-white text-sm tracking-wider uppercase">Офис и производство</h4>
           <p class="text-xs text-slate-400 leading-relaxed">
             Юридический адрес: 108824, г. Москва, Щербинка, с. Остафьево, ул. Троицкая, д. 2/1, пом. 2/Ц.
           </p>
           <p class="text-xs text-slate-400 leading-relaxed">
-            Производственно-складской комплекс: Костромская область, г. Кострома.
+            Производственный комплекс: Костромская область, г. Кострома.
           </p>
         </div>
 
       </div>
 
-      <!-- Bottom Copyright -->
+      <!-- Правовая информация и ссылки -->
       <div class="border-t border-slate-900 pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
         <div>
           © 2014–2026 ООО «ФЕДСТРОЙ». Все права защищены.
         </div>
-        <div class="flex gap-6">
-          <a href="#" class="hover:text-slate-400 transition-colors">Политика конфиденциальности</a>
-          <a href="#" class="hover:text-slate-400 transition-colors">Согласие на обработку персональных данных</a>
+        <div class="flex flex-wrap gap-4 sm:gap-6">
+          <a href="./privacy.html" class="hover:text-slate-300 transition-colors underline">Политика конфиденциальности</a>
+          <a href="./consent.html" class="hover:text-slate-300 transition-colors underline">Согласие на обработку данных</a>
+          <a href="./requisites.html" class="hover:text-slate-300 transition-colors underline">Реквизиты организации</a>
         </div>
       </div>
 
     </div>
   </footer>
-  <!-- Block End: blocks/footer.html -->
 
   
-  <!-- Block Start: blocks/floating-dock.html -->
-<!-- ==================== SCROLL TO TOP BUTTON ==================== -->
+  <!-- Block: blocks/floating-dock.html -->
+<!-- Кнопка скролла наверх -->
   <button type="button" id="scroll-to-top" class="fixed bottom-6 right-24 sm:right-24 z-40 w-12 h-12 bg-white/95 hover:bg-white text-slate-700 hover:text-brand-600 rounded-full shadow-lg border border-slate-200 flex items-center justify-center transition-all duration-300 opacity-0 pointer-events-none translate-y-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500" aria-label="Наверх страницы">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
   </button>
 
-  <!-- ==================== FLOATING QUICK CONTACT DOCK ==================== -->
+  <!-- Плавающий виджет оперативной связи -->
   <div id="floating-dock" class="fixed bottom-6 right-6 z-40">
-    <!-- Popover Menu -->
     <div id="dock-menu" class="floating-dock-menu hidden-menu absolute bottom-16 right-0 w-80 bg-slate-900 border border-slate-700/80 rounded-3xl p-5 shadow-2xl text-white mb-2">
-      <!-- Status header -->
+      
       <div class="flex items-center gap-3 pb-3 mb-3 border-b border-slate-800">
         <div class="relative">
           <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-brand-400 font-bold border border-slate-700 text-xs">
@@ -1751,11 +1781,10 @@
         </div>
         <div>
           <h4 class="font-heading font-bold text-sm text-white">Инженер ПТО на связи</h4>
-          <p class="text-xs text-slate-400">Консультация и расчет сметы</p>
+          <p class="text-xs text-slate-400">пн–пт с 9:00 до 18:00 МСК</p>
         </div>
       </div>
 
-      <!-- Quick Action List -->
       <div class="space-y-2 text-xs">
         <a href="tel:+78007000223" class="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 transition-colors border border-slate-700/60 group">
           <div class="flex items-center gap-2.5">
@@ -1776,8 +1805,8 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
             <div>
-              <span class="font-bold block">Звонок за 25 минут</span>
-              <span class="text-white/80 text-[11px]">Экспресс-связь с инженером</span>
+              <span class="font-bold block">Заказать обратный звонок</span>
+              <span class="text-white/80 text-[11px]">Ответ инженера в рабочее время</span>
             </div>
           </div>
           <span>→</span>
@@ -1790,7 +1819,7 @@
             </div>
             <div>
               <span class="font-bold text-white block group-hover:text-[#229ED9] transition-colors">Telegram @Lexus2026</span>
-              <span class="text-slate-400 text-[11px]">Отправить проект/чертежи</span>
+              <span class="text-slate-400 text-[11px]">Отправить проект / чертежи</span>
             </div>
           </div>
           <span class="text-slate-400 group-hover:text-white">→</span>
@@ -1811,87 +1840,102 @@
       </div>
     </div>
 
-    <!-- Toggle Trigger Button -->
     <button type="button" id="dock-trigger" class="w-14 h-14 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white rounded-full shadow-2xl flex items-center justify-center transition-all cursor-pointer relative group focus:outline-none focus:ring-4 focus:ring-brand-500/30" aria-label="Связаться с инженером">
       <span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full animate-status-pulse"></span>
       <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
     </button>
   </div>
-  <!-- Block End: blocks/floating-dock.html -->
 
   
-  <!-- Block Start: blocks/modals.html -->
-<!-- ==================== LEAD MODAL ==================== -->
+  <!-- Block: blocks/modals.html -->
+<!-- Модальное окно: Запрос коммерческого предложения и расчет КМД -->
   <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200 form-container">
       
-      <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300" aria-label="Закрыть">
+      <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
 
-      <div class="mb-6">
+      <div class="mb-5">
         <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block mb-1">ООО «ФЕДСТРОЙ»</span>
-        <h3 id="modal-title" class="font-heading text-2xl font-bold text-slate-900">Запрос коммерческого предложения</h3>
-        <p id="modal-service-title" class="text-xs text-slate-500 mt-1">Оставьте контактные данные — инженер свяжется для уточнения техзадания</p>
+        <h3 id="modal-title" class="font-heading text-xl sm:text-2xl font-bold text-slate-900">Запрос расчета коммерческого предложения</h3>
+        <p id="modal-service-title" class="text-xs text-slate-500 mt-1">Оставьте контакты и прикрепите проект — инженер ПТО подготовит спецификацию</p>
       </div>
 
-      <form class="space-y-4 js-lead-form">
+      <form class="space-y-3.5 js-lead-form">
         <input type="hidden" name="source" value="Модальное окно запроса">
+        <input type="hidden" name="service" value="Вентилируемые фасады и подсистемы">
 
         <div>
-          <label for="modal-name" class="block text-xs font-semibold text-slate-700 mb-1">Ваше имя / Должность</label>
-          <input type="text" id="modal-name" name="name" placeholder="Александр, главный инженер" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <label for="modal-name" class="block text-xs font-semibold text-slate-700 mb-1">Имя контактного лица / Организация</label>
+          <input type="text" id="modal-name" name="name" placeholder="Например: Александр, главный инженер" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
           <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-name">Пожалуйста, укажите имя</p>
         </div>
 
         <div>
-          <label for="modal-phone" class="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
-          <input type="tel" id="modal-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
-          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-phone">Укажите номер для связи</p>
+          <label for="modal-phone" class="block text-xs font-semibold text-slate-700 mb-1">Номер телефона для связи *</label>
+          <input type="tel" id="modal-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-phone">Укажите корректный номер телефона</p>
+        </div>
+
+        <!-- Зона прикрепления файла ТЗ -->
+        <div class="js-file-dropzone border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-slate-50/70">
+          <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+          
+          <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-500">
+            <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+            <span>Прикрепить ТЗ, чертеж или эскиз (.pdf, .dwg, .zip до 35 МБ)</span>
+          </div>
+
+          <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+            <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+            <span class="text-slate-500 text-[11px] js-file-size ml-2"></span>
+            <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-500 p-1 font-bold">✕</button>
+          </div>
+
+          <p class="js-file-error text-[11px] text-red-500 mt-1 hidden"></p>
         </div>
 
         <div class="flex items-start gap-2.5 pt-1">
           <input type="checkbox" id="modal-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
           <label for="modal-agree" class="text-xs text-slate-600 leading-tight">
-            Согласен на обработку персональных данных в соответствии с Федеральным законом № 152-ФЗ
+            Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой персональных данных</a> (152-ФЗ)
           </label>
         </div>
         <p class="error-msg text-xs text-red-500 hidden" id="error-modal-agreement">Необходимо подтвердить согласие</p>
 
-        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm">
-          Отправить заявку
+        <button type="submit" class="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer">
+          Отправить заявку в ПТО
         </button>
       </form>
     </div>
   </div>
 
 
-  <!-- ==================== EXPRESS 25-MINUTE CALLBACK MODAL ==================== -->
-  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Экспресс-обратный звонок">
+  <!-- Модальное окно: Заказ обратного звонка инженера -->
+  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Обратный звонок инженера">
     <div class="relative max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200">
-      <!-- Close button -->
-      <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть модальное окно">
+      
+      <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
 
-      <!-- Modal Header -->
       <div class="flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
         </div>
         <div>
-          <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block">Экспресс-связь ПТО</span>
-          <h3 class="font-heading text-xl font-bold text-slate-900 leading-tight">Звонок за 25 минут</h3>
+          <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block">ПТО ООО «ФЕДСТРОЙ»</span>
+          <h3 class="font-heading text-xl font-bold text-slate-900 leading-tight">Обратный звонок инженера</h3>
         </div>
       </div>
 
-      <p class="text-slate-600 text-xs sm:text-sm mb-6 leading-relaxed">
-        Оставьте номер — дежурный инженер свяжется с вами, ответит на вопросы по узлам подсистемы или примет ТЗ на расчет.
+      <p class="text-slate-600 text-xs sm:text-sm mb-5 leading-relaxed">
+        Оставьте номер — дежурный инженер свяжется с вами в рабочее время (пн–пт с 9:00 до 18:00 МСК) для консультации по узлам подсистем и смете.
       </p>
 
-      <!-- Express Form -->
       <form class="js-lead-form space-y-4">
-        <input type="hidden" name="source" value="Экспресс-обратный звонок (25 мин)">
+        <input type="hidden" name="source" value="Обратный звонок инженера">
 
         <div>
           <label for="callback-name" class="block text-xs font-semibold text-slate-700 mb-1">Ваше имя</label>
@@ -1908,22 +1952,23 @@
         <div class="flex items-start gap-2.5 pt-1">
           <input type="checkbox" id="callback-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
           <label for="callback-agree" class="text-xs text-slate-600 leading-tight">
-            Согласен на обработку персональных данных (152-ФЗ)
+            Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой персональных данных</a> (152-ФЗ)
           </label>
         </div>
         <p class="error-msg text-xs text-red-500 hidden" id="error-callback-agreement">Необходимо подтвердить согласие</p>
 
-        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md">
-          Жду звонка инженера
+        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md cursor-pointer">
+          Заказать обратный звонок
         </button>
       </form>
     </div>
   </div>
 
-  <!-- ==================== PHOTO LIGHTBOX VIEWER ==================== -->
+
+  <!-- Полноэкранный просмотр фотографий объектов (Lightbox) -->
   <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-md transition-all" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
     <div class="relative max-w-5xl w-full flex flex-col items-center">
-      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none" aria-label="Закрыть фото">
+      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none cursor-pointer" aria-label="Закрыть">
         <span class="text-xs font-semibold">Закрыть (Esc)</span>
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
@@ -1936,9 +1981,10 @@
       </div>
     </div>
   </div>
-  <!-- Block End: blocks/modals.html -->
 
 
-<script src="./app.js"></script>
+  <!-- Скрипты: модульная архитектура и бандл для совместимости -->
+  <script type="module" src="./js/main.js"></script>
+  <script nomodule src="./app.js"></script>
 </body>
 </html>

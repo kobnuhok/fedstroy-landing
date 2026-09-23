@@ -1,11 +1,11 @@
 // =========================================================================
-// Модуль инженерного онлайн-калькулятора стоимости
-// Автономен: если блок #calculator удален, функция мягко выходит без ошибок
+// Модуль ориентировочного расчета стоимости подсистемы и материалов
+// Расчет носит ознакомительный характер на основе средних норм расхода.
 // =========================================================================
 
 export function initCalculator() {
   const calcSection = document.getElementById('calculator');
-  if (!calcSection) return; // Безопасный выход, если блок отсутствует
+  if (!calcSection) return;
 
   const areaSlider = document.getElementById('calc-area');
   const areaValue = document.getElementById('calc-area-val');
@@ -13,26 +13,31 @@ export function initCalculator() {
   const materialSelect = document.getElementById('calc-material');
   const metalRadios = document.querySelectorAll('input[name="subsystem-metal"]');
   const installCheckbox = document.getElementById('calc-install');
+  const insulationCheckbox = document.getElementById('calc-insulation');
 
   const totalMinEl = document.getElementById('calc-total-min');
   const totalMaxEl = document.getElementById('calc-total-max');
   const perMeterEl = document.getElementById('calc-per-meter');
   const durationEl = document.getElementById('calc-duration');
+  const breakdownSubsystemEl = document.getElementById('calc-breakdown-subsystem');
+  const breakdownCladdingEl = document.getElementById('calc-breakdown-cladding');
 
+  // Базовые диапазоны цен на облицовку и плиты (руб/м²)
   const materialPricing = {
-    keramogranit: { baseMin: 2200, baseMax: 3100, label: 'Керамогранит' },
-    composite: { baseMin: 2800, baseMax: 3900, label: 'Алюминиевый композит' },
-    metalkassety: { baseMin: 2500, baseMax: 3400, label: 'Металлокассеты' },
-    fibrocement: { baseMin: 3100, baseMax: 4400, label: 'Фиброцементные плиты' },
-    hpl: { baseMin: 4200, baseMax: 6100, label: 'HPL-панели' },
-    falshpol_chipboard: { baseMin: 2900, baseMax: 4200, label: 'Фальшпол ДСП 38мм' },
-    falshpol_sulfate: { baseMin: 3900, baseMax: 5600, label: 'Фальшпол Сульфат кальция' },
+    keramogranit: { baseMin: 1800, baseMax: 2600, label: 'Керамогранит 600×600' },
+    composite: { baseMin: 2400, baseMax: 3500, label: 'Алюминиевый композит (АКП)' },
+    metalkassety: { baseMin: 2100, baseMax: 3000, label: 'Металлокассеты' },
+    fibrocement: { baseMin: 2700, baseMax: 3900, label: 'Фиброцементные плиты' },
+    hpl: { baseMin: 3800, baseMax: 5600, label: 'HPL-панели' },
+    falshpol_chipboard: { baseMin: 2500, baseMax: 3600, label: 'Фальшпол ДСП 38 мм' },
+    falshpol_sulfate: { baseMin: 3400, baseMax: 4900, label: 'Фальшпол Сульфат кальция' }
   };
 
-  const metalMultipliers = {
-    galvanized: 1.0,     // Оцинкованная сталь
-    aluminum: 1.22,      // Алюминиевая подсистема
-    stainless: 1.48      // Нержавеющая сталь
+  // Базовая стоимость металлической подсистемы (кронштейны, профили, кляммеры, термопрокладки)
+  const subsystemBasePerMeter = {
+    galvanized: { min: 850, max: 1150, name: 'Оцинкованная сталь 1.2 мм' },
+    aluminum: { min: 1250, max: 1650, name: 'Алюминиевый профиль АД31Т1' },
+    stainless: { min: 1850, max: 2450, name: 'Нержавеющая сталь AISI 430/304' }
   };
 
   function updateCalculator() {
@@ -49,16 +54,21 @@ export function initCalculator() {
 
     const materialKey = materialSelect ? materialSelect.value : 'keramogranit';
     const materialData = materialPricing[materialKey] || materialPricing.keramogranit;
-    const metalMult = metalMultipliers[selectedMetal] || 1.0;
+    const subData = subsystemBasePerMeter[selectedMetal] || subsystemBasePerMeter.galvanized;
 
+    // Дополнительные опции
+    const insulationCost = (insulationCheckbox && insulationCheckbox.checked) ? 550 : 0;
     const installCost = (installCheckbox && installCheckbox.checked) ? 1450 : 0;
 
-    const perMeterMin = Math.round((materialData.baseMin * metalMult) + installCost);
-    const perMeterMax = Math.round((materialData.baseMax * metalMult) + installCost);
+    // Расчет стоимости за 1 м²
+    const perMeterMin = subData.min + materialData.baseMin + insulationCost + installCost;
+    const perMeterMax = subData.max + materialData.baseMax + insulationCost + installCost;
 
+    // Общий ориентировочный бюджет
     const totalMin = perMeterMin * area;
     const totalMax = perMeterMax * area;
 
+    // Сроки поставки и монтажа по нормам ПТО
     const workDaysMin = Math.max(7, Math.round(area / 65));
     const workDaysMax = Math.max(10, Math.round(area / 45));
 
@@ -66,24 +76,31 @@ export function initCalculator() {
     if (totalMaxEl) totalMaxEl.textContent = totalMax.toLocaleString('ru-RU') + ' ₽';
     if (perMeterEl) perMeterEl.textContent = `от ${perMeterMin.toLocaleString('ru-RU')} ₽/м²`;
     if (durationEl) durationEl.textContent = `${workDaysMin}–${workDaysMax} раб. дней`;
+
+    if (breakdownSubsystemEl) {
+      breakdownSubsystemEl.textContent = `от ${(subData.min * area).toLocaleString('ru-RU')} ₽ (${subData.name})`;
+    }
+    if (breakdownCladdingEl) {
+      breakdownCladdingEl.textContent = `от ${(materialData.baseMin * area).toLocaleString('ru-RU')} ₽ (${materialData.label})`;
+    }
   }
 
-  if (areaSlider) areaSlider.addEventListener('input', updateCalculator);
+  areaSlider.addEventListener('input', updateCalculator);
   if (materialSelect) materialSelect.addEventListener('change', updateCalculator);
 
   systemTypeRadios.forEach(r => r.addEventListener('change', (e) => {
     if (materialSelect) {
       if (e.target.value === 'falshpol') {
         materialSelect.innerHTML = `
-          <option value="falshpol_chipboard">Фальшпол: плиты ДСП 38 мм (для офисов и БЦ)</option>
-          <option value="falshpol_sulfate">Фальшпол: сульфат кальция (для серверных и ЦОД)</option>
+          <option value="falshpol_chipboard">Фальшпол: плиты ДСП 38 мм (БЦ и офисы)</option>
+          <option value="falshpol_sulfate">Фальшпол: сульфат кальция 30–36 мм (ЦОД и серверные)</option>
         `;
       } else {
         materialSelect.innerHTML = `
           <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
-          <option value="composite">Алюминиевые композитные панели (АКП)</option>
+          <option value="composite">Алюминиевый композит (АКП 4 мм / 0.4)</option>
           <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
-          <option value="fibrocement">Фиброцементные плиты (окрашенные в массе)</option>
+          <option value="fibrocement">Фиброцементные панели (окрашенные в массе)</option>
           <option value="hpl">HPL-панели (ламинат высокого давления)</option>
         `;
       }
@@ -93,21 +110,20 @@ export function initCalculator() {
 
   metalRadios.forEach(r => r.addEventListener('change', updateCalculator));
   if (installCheckbox) installCheckbox.addEventListener('change', updateCalculator);
+  if (insulationCheckbox) insulationCheckbox.addEventListener('change', updateCalculator);
 
-  // Area Preset Buttons
-  const areaPresetBtns = document.querySelectorAll('.js-area-preset');
-  areaPresetBtns.forEach(btn => {
+  // Кнопки типовых площадей
+  document.querySelectorAll('.js-area-preset').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetVal = parseInt(btn.getAttribute('data-area'), 10);
       if (areaSlider && targetVal) {
         areaSlider.value = targetVal;
         updateCalculator();
-        areaPresetBtns.forEach(b => b.classList.remove('bg-brand-600', 'text-white', 'border-brand-600'));
+        document.querySelectorAll('.js-area-preset').forEach(b => b.classList.remove('bg-brand-600', 'text-white', 'border-brand-600'));
         btn.classList.add('bg-brand-600', 'text-white', 'border-brand-600');
       }
     });
   });
 
-  // Первоначальный расчет
   updateCalculator();
 }

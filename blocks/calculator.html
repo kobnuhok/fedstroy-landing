@@ -1,23 +1,23 @@
-<!-- ==================== INTERACTIVE B2B CALCULATOR ==================== -->
+<!-- Секция: Ориентировочный расчет сметы -->
   <section id="calculator" class="py-16 sm:py-24 xl:py-28 bg-white border-b border-slate-200">
     <div class="page-container">
       
-      <div class="text-center max-w-4xl mx-auto mb-14 sm:mb-16">
-        <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block mb-2">Инженерный калькулятор сметы</span>
+      <div class="text-center max-w-4xl mx-auto mb-12 sm:mb-14">
+        <span class="text-xs font-bold tracking-widest text-brand-600 uppercase block mb-2">Предварительная смета</span>
         <h2 class="font-heading text-3xl sm:text-4xl xl:text-5xl font-extrabold text-slate-900 tracking-tight">
-          Онлайн-расчет стоимости объекта
+          Ориентировочный расчет стоимости подсистемы и материалов
         </h2>
         <p class="text-slate-600 mt-3 text-base sm:text-lg">
-          Выберите параметры здания — калькулятор сформирует сметную вилку бюджета с учетом цен металлопроката и комплектующих на текущий месяц.
+          Укажите параметры здания — калькулятор сформирует предварительную вилку бюджета с разбивкой по подсистеме, облицовке и комплектующим.
         </p>
       </div>
 
       <div class="grid lg:grid-cols-12 gap-8 xl:gap-12 items-start">
         
-        <!-- Calculator Controls Form -->
-        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+        <!-- Элементы управления калькулятором -->
+        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-7">
           
-          <!-- System Type -->
+          <!-- 1. Тип системы -->
           <div>
             <label class="block text-sm font-bold text-slate-900 mb-3">1. Тип строительной системы</label>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -36,13 +36,13 @@
               <label class="cursor-pointer col-span-2 sm:col-span-1">
                 <input type="radio" name="system-type" value="complex" class="peer sr-only">
                 <div class="p-3.5 text-center rounded-2xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 transition-all font-semibold text-xs sm:text-sm">
-                  Фасад + Потолки
+                  Комплекс (под ключ)
                 </div>
               </label>
             </div>
           </div>
 
-          <!-- Area Slider & Quick Presets -->
+          <!-- 2. Площадь -->
           <div>
             <div class="flex justify-between items-center mb-2">
               <label for="calc-area" class="text-sm font-bold text-slate-900">2. Площадь объекта (м²)</label>
@@ -50,7 +50,6 @@
             </div>
             <input type="range" id="calc-area" min="100" max="6000" step="50" value="650" class="w-full h-2.5 rounded-lg" aria-label="Площадь объекта в квадратных метрах">
             
-            <!-- Quick preset buttons -->
             <div class="flex items-center gap-2 mt-3 flex-wrap">
               <span class="text-xs text-slate-500 mr-1">Быстрый выбор:</span>
               <button type="button" class="js-area-preset px-3 py-1 bg-white border border-slate-200 hover:border-brand-500 rounded-lg text-xs font-semibold text-slate-700 transition-colors" data-area="250">250 м²</button>
@@ -61,21 +60,19 @@
             </div>
           </div>
 
-          <!-- Materials and Subsystems 2-Col Grid -->
+          <!-- 3. Материал и металл -->
           <div class="grid sm:grid-cols-2 gap-6">
-            <!-- Material Selection -->
             <div>
-              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">3. Материал облицовки / плит</label>
+              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">3. Материал облицовки</label>
               <select id="calc-material" class="w-full p-3.5 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
                 <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
                 <option value="composite">Алюминиевый композит (АКП)</option>
                 <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
                 <option value="fibrocement">Фиброцементные плиты (в массе)</option>
-                <option value="hpl">HPL-панели (высокое давление)</option>
+                <option value="hpl">HPL-панели (ламинат высокого давления)</option>
               </select>
             </div>
 
-            <!-- Subsystem Metal Selection -->
             <div>
               <label class="block text-sm font-bold text-slate-900 mb-2">4. Металл подсистемы</label>
               <div class="grid grid-cols-3 gap-2 text-xs sm:text-sm">
@@ -101,66 +98,107 @@
             </div>
           </div>
 
-          <!-- Installation work checkbox -->
-          <div class="pt-2 border-t border-slate-200">
+          <!-- Опции: Утеплитель и Монтаж -->
+          <div class="pt-3 border-t border-slate-200 space-y-3">
+            <label class="flex items-center gap-3.5 cursor-pointer">
+              <input type="checkbox" id="calc-insulation" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
+              <span class="text-sm text-slate-800 font-medium">Теплоизоляция: минераловатные плиты 100 мм + гидроветрозащитная мембрана (+550 ₽/м²)</span>
+            </label>
             <label class="flex items-center gap-3.5 cursor-pointer">
               <input type="checkbox" id="calc-install" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
-              <span class="text-sm text-slate-800 font-medium">Включить монтажные работы «под ключ» бригадой с допуском (+1 450 ₽/м²)</span>
+              <span class="text-sm text-slate-800 font-medium">Строительно-монтажные работы бригадами с допуском СРО (+1 450 ₽/м²)</span>
             </label>
+          </div>
+
+          <!-- Инженерный дисклеймер -->
+          <div class="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-900 leading-relaxed">
+            <svg class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+              <strong class="block mb-0.5">Внимание: расчет носит ориентировочный характер</strong>
+              Точная сметная стоимость формируется инженерами ПТО ООО «ФЕДСТРОЙ» после геодезической 3D-съемки несущих стен, статического расчета ветровых нагрузок по СП 20.13330.2016 и согласования раскладки КМД.
+            </div>
           </div>
 
         </div>
 
-        <!-- Calculated Summary Card & Lead Form -->
-        <div class="lg:col-span-5 2xl:col-span-5 bg-surface-900 text-white p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-800 shadow-2xl form-container sticky top-28">
-          <div class="border-b border-slate-800 pb-6 mb-6">
-            <span class="text-xs uppercase tracking-wider text-slate-400 font-bold block mb-1.5">Ориентировочная стоимость</span>
-            <div class="text-4xl sm:text-5xl 2xl:text-6xl font-black font-heading text-brand-500 tracking-tight" id="calc-total-min">1 850 000 ₽</div>
+        <!-- Итоговая карточка расчета и форма отправки -->
+        <div class="lg:col-span-5 2xl:col-span-5 bg-surface-900 text-white p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-800 shadow-2xl form-container sticky top-28 space-y-6">
+          
+          <div class="border-b border-slate-800 pb-5">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs uppercase tracking-wider text-slate-400 font-bold">Ориентировочный бюджет:</span>
+              <span class="text-xs text-emerald-400 font-semibold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">Цены за квартал</span>
+            </div>
+            <div class="text-4xl sm:text-5xl font-black font-heading text-brand-500 tracking-tight" id="calc-total-min">1 850 000 ₽</div>
             <div class="text-xs sm:text-sm text-slate-400 mt-2 flex justify-between items-center">
-              <span>Предельная планка: <strong class="text-slate-200" id="calc-total-max">2 450 000 ₽</strong></span>
+              <span>Вилка до: <strong class="text-slate-200" id="calc-total-max">2 450 000 ₽</strong></span>
               <span id="calc-per-meter" class="text-slate-300 font-mono font-bold bg-slate-800 px-2.5 py-1 rounded">от 2 850 ₽/м²</span>
             </div>
           </div>
 
-          <!-- Key Project Estimates -->
-          <div class="grid grid-cols-2 gap-4 mb-6 text-xs sm:text-sm text-slate-300">
-            <div class="bg-surface-800/90 p-4 rounded-2xl border border-slate-700/80">
-              <span class="text-slate-400 block mb-1 text-xs">Расчетный срок:</span>
-              <span class="font-bold text-white text-sm sm:text-base" id="calc-duration">12–16 раб. дней</span>
+          <!-- Детализация статей расходов -->
+          <div class="space-y-2 text-xs text-slate-300 bg-surface-800/80 p-4 rounded-2xl border border-slate-700/80">
+            <span class="font-bold text-white block mb-1 text-xs uppercase tracking-wider">Структура сметы:</span>
+            <div class="flex justify-between py-1 border-b border-slate-700/60">
+              <span class="text-slate-400">Подсистема и крепеж:</span>
+              <span id="calc-breakdown-subsystem" class="font-semibold text-white">от 552 500 ₽</span>
             </div>
-            <div class="bg-surface-800/90 p-4 rounded-2xl border border-slate-700/80">
-              <span class="text-slate-400 block mb-1 text-xs">Пакет документов:</span>
-              <span class="font-bold text-white text-sm sm:text-base">Паспорт + СРО</span>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-400">Облицовочный материал:</span>
+              <span id="calc-breakdown-cladding" class="font-semibold text-white">от 1 170 000 ₽</span>
+            </div>
+            <div class="flex justify-between py-1 border-t border-slate-700/60 text-slate-400">
+              <span>Сроки поставки/монтажа:</span>
+              <span id="calc-duration" class="font-bold text-brand-400">12–16 раб. дней</span>
             </div>
           </div>
 
-          <!-- Lock Estimate Form -->
+          <!-- Форма отправки расчета в ПТО с загрузкой ТЗ -->
           <form class="space-y-4 js-lead-form">
-            <input type="hidden" name="source" value="Калькулятор стоимости">
+            <input type="hidden" name="source" value="Калькулятор ориентировочной сметы">
+
             <div>
-              <label for="lead-name" class="block text-xs font-semibold text-slate-300 mb-1.5">Ваше имя / Компания</label>
-              <input type="text" id="lead-name" name="name" placeholder="Константин, ООО «Монолит»" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-name">Укажите контактное лицо</p>
+              <label for="lead-name" class="block text-xs font-semibold text-slate-300 mb-1">Имя контактного лица / Компания</label>
+              <input type="text" id="lead-name" name="name" placeholder="Например: Сергей, ООО «СтройГрупп»" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-lead-name">Укажите контактное лицо</p>
             </div>
 
             <div>
-              <label for="lead-phone" class="block text-xs font-semibold text-slate-300 mb-1.5">Телефон для получения официального КП</label>
+              <label for="lead-phone" class="block text-xs font-semibold text-slate-300 mb-1">Номер телефона для связи *</label>
               <input type="tel" id="lead-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-surface-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
-              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-phone">Введите корректный номер телефона</p>
+              <p class="error-msg text-xs text-red-400 mt-1 hidden" id="error-lead-phone">Введите корректный номер телефона</p>
+            </div>
+
+            <!-- Зона прикрепления ТЗ / чертежей -->
+            <div class="js-file-dropzone border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-surface-800/40">
+              <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              
+              <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-400">
+                <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Прикрепить чертеж КМ/АР или ТЗ (.pdf, .dwg, .zip до 35 МБ)</span>
+              </div>
+
+              <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-200 bg-surface-800 px-3 py-1.5 rounded-lg">
+                <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+                <span class="text-slate-400 text-[11px] js-file-size ml-2"></span>
+                <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-400 p-1 font-bold">✕</button>
+              </div>
+
+              <p class="js-file-error text-[11px] text-red-400 mt-1 hidden"></p>
             </div>
 
             <div class="flex items-start gap-2.5 pt-1">
               <input type="checkbox" id="calc-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-700 bg-surface-800 focus:ring-brand-500" checked>
               <label for="calc-agree" class="text-xs text-slate-400 leading-tight">
-                Согласен на обработку персональных данных (152-ФЗ) и получение расчетной сметы
+                Согласен с <a href="./privacy.html" target="_blank" class="text-slate-300 underline hover:text-white">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-slate-300 underline hover:text-white">обработкой персональных данных</a> (152-ФЗ)
               </label>
             </div>
-            <p class="error-msg text-xs text-red-400 hidden" id="error-agreement">Необходимо подтвердить согласие</p>
+            <p class="error-msg text-xs text-red-400 hidden" id="error-calc-agree">Необходимо подтвердить согласие</p>
 
-            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base uppercase tracking-wider">
-              Зафиксировать расчет в смету
+            <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-lg text-sm sm:text-base uppercase tracking-wider cursor-pointer">
+              Передать расчет инженеру ПТО
             </button>
-            <span class="block text-xs text-center text-slate-500">Фиксация стоимости по расчету действует 30 дней</span>
+            <span class="block text-[11px] text-center text-slate-500">Свяжемся в рабочее время для согласования узлов</span>
           </form>
 
         </div>

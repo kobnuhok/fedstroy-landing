@@ -1,74 +1,91 @@
-<!-- ==================== LEAD MODAL ==================== -->
+<!-- Модальное окно: Запрос коммерческого предложения и расчет КМД -->
   <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200 form-container">
       
-      <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-300" aria-label="Закрыть">
+      <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
 
-      <div class="mb-6">
+      <div class="mb-5">
         <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block mb-1">ООО «ФЕДСТРОЙ»</span>
-        <h3 id="modal-title" class="font-heading text-2xl font-bold text-slate-900">Запрос коммерческого предложения</h3>
-        <p id="modal-service-title" class="text-xs text-slate-500 mt-1">Оставьте контактные данные — инженер свяжется для уточнения техзадания</p>
+        <h3 id="modal-title" class="font-heading text-xl sm:text-2xl font-bold text-slate-900">Запрос расчета коммерческого предложения</h3>
+        <p id="modal-service-title" class="text-xs text-slate-500 mt-1">Оставьте контакты и прикрепите проект — инженер ПТО подготовит спецификацию</p>
       </div>
 
-      <form class="space-y-4 js-lead-form">
+      <form class="space-y-3.5 js-lead-form">
         <input type="hidden" name="source" value="Модальное окно запроса">
+        <input type="hidden" name="service" value="Вентилируемые фасады и подсистемы">
 
         <div>
-          <label for="modal-name" class="block text-xs font-semibold text-slate-700 mb-1">Ваше имя / Должность</label>
-          <input type="text" id="modal-name" name="name" placeholder="Александр, главный инженер" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <label for="modal-name" class="block text-xs font-semibold text-slate-700 mb-1">Имя контактного лица / Организация</label>
+          <input type="text" id="modal-name" name="name" placeholder="Например: Александр, главный инженер" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
           <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-name">Пожалуйста, укажите имя</p>
         </div>
 
         <div>
-          <label for="modal-phone" class="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
-          <input type="tel" id="modal-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
-          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-phone">Укажите номер для связи</p>
+          <label for="modal-phone" class="block text-xs font-semibold text-slate-700 mb-1">Номер телефона для связи *</label>
+          <input type="tel" id="modal-phone" name="phone" placeholder="+7 (999) 000-00-00" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors">
+          <p class="error-msg text-xs text-red-500 mt-1 hidden" id="error-modal-phone">Укажите корректный номер телефона</p>
+        </div>
+
+        <!-- Зона прикрепления файла ТЗ -->
+        <div class="js-file-dropzone border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-3 text-center transition-colors relative cursor-pointer bg-slate-50/70">
+          <input type="file" name="attachment" accept=".dwg,.pdf,.zip,.rar,.7z,.doc,.docx,.xls,.xlsx,.png,.jpg" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+          
+          <div class="js-dropzone-prompt flex items-center justify-center gap-2 text-xs text-slate-500">
+            <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+            <span>Прикрепить ТЗ, чертеж или эскиз (.pdf, .dwg, .zip до 35 МБ)</span>
+          </div>
+
+          <div class="js-dropzone-preview hidden flex items-center justify-between text-xs text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+            <span class="truncate max-w-[200px] font-semibold js-file-name"></span>
+            <span class="text-slate-500 text-[11px] js-file-size ml-2"></span>
+            <button type="button" class="js-file-remove ml-2 text-slate-400 hover:text-red-500 p-1 font-bold">✕</button>
+          </div>
+
+          <p class="js-file-error text-[11px] text-red-500 mt-1 hidden"></p>
         </div>
 
         <div class="flex items-start gap-2.5 pt-1">
           <input type="checkbox" id="modal-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
           <label for="modal-agree" class="text-xs text-slate-600 leading-tight">
-            Согласен на обработку персональных данных в соответствии с Федеральным законом № 152-ФЗ
+            Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой персональных данных</a> (152-ФЗ)
           </label>
         </div>
         <p class="error-msg text-xs text-red-500 hidden" id="error-modal-agreement">Необходимо подтвердить согласие</p>
 
-        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm">
-          Отправить заявку
+        <button type="submit" class="w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer">
+          Отправить заявку в ПТО
         </button>
       </form>
     </div>
   </div>
 
 
-  <!-- ==================== EXPRESS 25-MINUTE CALLBACK MODAL ==================== -->
-  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Экспресс-обратный звонок">
+  <!-- Модальное окно: Заказ обратного звонка инженера -->
+  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Обратный звонок инженера">
     <div class="relative max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200">
-      <!-- Close button -->
-      <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть модальное окно">
+      
+      <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
 
-      <!-- Modal Header -->
       <div class="flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
         </div>
         <div>
-          <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block">Экспресс-связь ПТО</span>
-          <h3 class="font-heading text-xl font-bold text-slate-900 leading-tight">Звонок за 25 минут</h3>
+          <span class="text-xs font-bold text-brand-600 uppercase tracking-wider block">ПТО ООО «ФЕДСТРОЙ»</span>
+          <h3 class="font-heading text-xl font-bold text-slate-900 leading-tight">Обратный звонок инженера</h3>
         </div>
       </div>
 
-      <p class="text-slate-600 text-xs sm:text-sm mb-6 leading-relaxed">
-        Оставьте номер — дежурный инженер свяжется с вами, ответит на вопросы по узлам подсистемы или примет ТЗ на расчет.
+      <p class="text-slate-600 text-xs sm:text-sm mb-5 leading-relaxed">
+        Оставьте номер — дежурный инженер свяжется с вами в рабочее время (пн–пт с 9:00 до 18:00 МСК) для консультации по узлам подсистем и смете.
       </p>
 
-      <!-- Express Form -->
       <form class="js-lead-form space-y-4">
-        <input type="hidden" name="source" value="Экспресс-обратный звонок (25 мин)">
+        <input type="hidden" name="source" value="Обратный звонок инженера">
 
         <div>
           <label for="callback-name" class="block text-xs font-semibold text-slate-700 mb-1">Ваше имя</label>
@@ -85,22 +102,23 @@
         <div class="flex items-start gap-2.5 pt-1">
           <input type="checkbox" id="callback-agree" name="agreement" class="mt-1 w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
           <label for="callback-agree" class="text-xs text-slate-600 leading-tight">
-            Согласен на обработку персональных данных (152-ФЗ)
+            Согласен с <a href="./privacy.html" target="_blank" class="text-brand-600 underline">Политикой конфиденциальности</a> и <a href="./consent.html" target="_blank" class="text-brand-600 underline">обработкой персональных данных</a> (152-ФЗ)
           </label>
         </div>
         <p class="error-msg text-xs text-red-500 hidden" id="error-callback-agreement">Необходимо подтвердить согласие</p>
 
-        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md">
-          Жду звонка инженера
+        <button type="submit" class="w-full py-4 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md cursor-pointer">
+          Заказать обратный звонок
         </button>
       </form>
     </div>
   </div>
 
-  <!-- ==================== PHOTO LIGHTBOX VIEWER ==================== -->
+
+  <!-- Полноэкранный просмотр фотографий объектов (Lightbox) -->
   <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-md transition-all" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
     <div class="relative max-w-5xl w-full flex flex-col items-center">
-      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none" aria-label="Закрыть фото">
+      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none cursor-pointer" aria-label="Закрыть">
         <span class="text-xs font-semibold">Закрыть (Esc)</span>
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
