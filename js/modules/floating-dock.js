@@ -1,8 +1,4 @@
-// =========================================================================
-// Модуль плавающего дока быстрой связи и кнопки «Наверх»
-// Автономен: если виджет удален из разметки, модуль не вызывает ошибок
-// =========================================================================
-
+// Floating contact widget and scroll-to-top button.
 export function initFloatingDock() {
   const dockTrigger = document.getElementById('dock-trigger');
   const dockMenu = document.getElementById('dock-menu');

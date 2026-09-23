@@ -1,9 +1,7 @@
-// =========================================================================
-// ООО «ФЕДСТРОЙ» — Модульный сборщик проекта
-// 1. Компилирует Tailwind CSS (src/input.css -> css/tailwind.css)
-// 2. Собирает HTML-блоки из blocks/ в корневой index.html
-// 3. Собирает JS-модули в резервный app.js (для поддержки nomodule)
-// =========================================================================
+// Скрипт сборки проекта:
+// 1. Компиляция Tailwind CSS (src/input.css -> css/tailwind.css)
+// 2. Вставка блоков из blocks/ в src/template.html -> index.html
+// 3. Бандл клиентских скриптов -> app.js (для браузеров без поддержки type="module")
 
 const fs = require('fs');
 const path = require('path');
@@ -18,43 +16,41 @@ const JS_MODULES_DIR = path.join(ROOT_DIR, 'js', 'modules');
 const OUTPUT_JS = path.join(ROOT_DIR, 'app.js');
 
 function buildCSS() {
+  console.log('[build:css] Сборка Tailwind CSS...');
   try {
-    console.log('[Tailwind] Компиляция локального CSS...');
     execSync('npx @tailwindcss/cli -i src/input.css -o css/tailwind.css --minify', {
       cwd: ROOT_DIR,
       stdio: 'pipe'
     });
     const size = (fs.statSync(path.join(ROOT_DIR, 'css', 'tailwind.css')).size / 1024).toFixed(1);
-    console.log(`[Tailwind OK] css/tailwind.css собран (${size} KB)`);
+    console.log(`[build:css] Готово: css/tailwind.css (${size} KB)`);
   } catch (err) {
-    console.error('[Tailwind Error] Ошибка сборки CSS:', err.message);
+    console.error('[build:css:error] Ошибка компиляции CSS:', err.message);
+    if (err.stderr) console.error(err.stderr.toString());
+    throw err;
   }
 }
 
 function buildHTML() {
   if (!fs.existsSync(TEMPLATE_FILE)) {
-    console.error(`[Build Error] Файл шаблона не найден: ${TEMPLATE_FILE}`);
-    return;
+    throw new Error(`Файл шаблона не найден: ${TEMPLATE_FILE}`);
   }
 
   let html = fs.readFileSync(TEMPLATE_FILE, 'utf8');
-
-  // Поиск директив <!-- @@include blocks/block.html -->
   const includeRegex = /<!--\s*@@include\s+([^\s]+)\s*-->/g;
 
   html = html.replace(includeRegex, (match, blockRelPath) => {
     const blockPath = path.join(ROOT_DIR, blockRelPath);
-    if (fs.existsSync(blockPath)) {
-      const blockContent = fs.readFileSync(blockPath, 'utf8');
-      return `\n  <!-- Block: ${blockRelPath} -->\n${blockContent.trim()}\n`;
-    } else {
-      console.warn(`[Build Warning] Блок не найден, пропущен: ${blockRelPath}`);
-      return `<!-- Block omitted: ${blockRelPath} -->`;
+    if (!fs.existsSync(blockPath)) {
+      throw new Error(`Блок не найден: ${blockPath}`);
     }
+    const blockContent = fs.readFileSync(blockPath, 'utf8');
+    return `\n  <!-- ${blockRelPath} -->\n${blockContent.trim()}\n`;
   });
 
   fs.writeFileSync(OUTPUT_HTML, html, 'utf8');
-  console.log(`[Build OK] index.html собран (${(Buffer.byteLength(html, 'utf8') / 1024).toFixed(1)} KB)`);
+  const size = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
+  console.log(`[build:html] Готово: index.html (${size} KB)`);
 }
 
 function buildJS() {
@@ -69,16 +65,14 @@ function buildJS() {
     'forms.js'
   ];
 
-  let bundleContent = `// ООО «ФЕДСТРОЙ» — Клиентский бандл\n`;
-  bundleContent += `// Автоматическая сборка для устаревших браузеров (nomodule)\n\n`;
+  let bundleContent = `// Клиентский бандл для браузеров с поддержкой nomodule\n`;
   bundleContent += `(() => {\n`;
 
-  // Включаем CONFIG
   const configPath = path.join(ROOT_DIR, 'js', 'config.js');
   if (fs.existsSync(configPath)) {
     let cfg = fs.readFileSync(configPath, 'utf8');
     cfg = cfg.replace(/export\s+const\s+CONFIG/g, 'const CONFIG');
-    bundleContent += `  // --- Конфигурация ---\n  ${cfg.split('\n').join('\n  ')}\n\n`;
+    bundleContent += `  // config\n  ${cfg.split('\n').join('\n  ')}\n\n`;
   }
 
   const inits = [];
@@ -87,12 +81,11 @@ function buildJS() {
     const modPath = path.join(JS_MODULES_DIR, file);
     if (fs.existsSync(modPath)) {
       let code = fs.readFileSync(modPath, 'utf8');
-      // Удаляем ES import/export
       code = code.replace(/import\s+[^;]+;/g, '');
       code = code.replace(/export\s+function\s+([a-zA-Z0-9_]+)\s*\(/g, 'function $1(');
       code = code.replace(/export\s+const\s+/g, 'const ');
 
-      bundleContent += `  // --- Модуль: ${file} ---\n`;
+      bundleContent += `  // ${file}\n`;
       bundleContent += `  ${code.split('\n').join('\n  ')}\n\n`;
 
       const match = code.match(/function\s+(init[a-zA-Z0-9_]+)\s*\(/);
@@ -104,37 +97,48 @@ function buildJS() {
 
   bundleContent += `  document.addEventListener('DOMContentLoaded', () => {\n`;
   inits.forEach(initFn => {
-    bundleContent += `    try { ${initFn}(); } catch (e) { console.warn('[FedStroy Module ${initFn} Error]:', e); }\n`;
+    bundleContent += `    ${initFn}();\n`;
   });
   bundleContent += `  });\n`;
   bundleContent += `})();\n`;
 
   fs.writeFileSync(OUTPUT_JS, bundleContent, 'utf8');
-  console.log(`[Build OK] app.js собран (${(Buffer.byteLength(bundleContent, 'utf8') / 1024).toFixed(1)} KB)`);
+  const size = (Buffer.byteLength(bundleContent, 'utf8') / 1024).toFixed(1);
+  console.log(`[build:js] Готово: app.js (${size} KB)`);
 }
 
 function runBuild() {
   const startTime = Date.now();
-  console.log('--- Начало сборки ООО «ФЕДСТРОЙ» ---');
-  buildCSS();
-  buildHTML();
-  buildJS();
-  console.log(`--- Сборка завершена за ${Date.now() - startTime} мс ---\n`);
+  console.log('[build] Старт сборки...');
+  try {
+    buildCSS();
+    buildHTML();
+    buildJS();
+    console.log(`[build] Сборка успешно завершена (${Date.now() - startTime} мс)`);
+  } catch (err) {
+    console.error('[build:fatal] Сборка прервана из-за ошибки:', err.message);
+    if (!process.argv.includes('--watch')) {
+      process.exit(1);
+    }
+  }
 }
 
-// Запуск сборки
 runBuild();
 
-// Режим отслеживания
 if (process.argv.includes('--watch')) {
-  console.log('[Watch Mode] Отслеживание изменений в blocks/, css/, js/, src/ ...');
-  const watchDirs = [BLOCKS_DIR, SRC_DIR, JS_MODULES_DIR, path.join(ROOT_DIR, 'css')];
+  console.log('[watch] Отслеживание изменений в blocks/, css/, js/, src/ ...');
+  const watchDirs = [
+    BLOCKS_DIR,
+    SRC_DIR,
+    path.join(ROOT_DIR, 'js'),
+    path.join(ROOT_DIR, 'css')
+  ];
 
   watchDirs.forEach(dir => {
     if (fs.existsSync(dir)) {
       fs.watch(dir, { recursive: true }, (eventType, filename) => {
         if (filename && !filename.includes('index.html') && !filename.includes('app.js') && !filename.includes('tailwind.css')) {
-          console.log(`[Изменение: ${filename}]. Пересборка...`);
+          console.log(`[watch] Изменен файл: ${filename}. Пересборка...`);
           runBuild();
         }
       });

@@ -1,11 +1,7 @@
-// ООО «ФЕДСТРОЙ» — Клиентский бандл
-// Автоматическая сборка для устаревших браузеров (nomodule)
-
+// Клиентский бандл для браузеров с поддержкой nomodule
 (() => {
-  // --- Конфигурация ---
-  // =========================================================================
-  // Конфигурация клиентского API ООО «ФЕДСТРОЙ»
-  // =========================================================================
+  // config
+  // Client API and contact configuration.
   
   const CONFIG = {
     // Основной эндпоинт отправки заявок:
@@ -24,12 +20,8 @@
   };
   
 
-  // --- Модуль: navigation.js ---
-  // =========================================================================
-  // Модуль навигации и мобильного меню
-  // Автономен: работает, только если элементы присутствуют в разметке
-  // =========================================================================
-  
+  // navigation.js
+  // Mobile menu and smooth scroll navigation.
   function initNavigation() {
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
     const mobileMenu = document.getElementById('mobile-menu');
@@ -65,12 +57,8 @@
   }
   
 
-  // --- Модуль: calculator.js ---
-  // =========================================================================
-  // Модуль ориентировочного расчета стоимости подсистемы и материалов
-  // Расчет носит ознакомительный характер на основе средних норм расхода.
-  // =========================================================================
-  
+  // calculator.js
+  // Cost estimator logic based on material, subsystem and area.
   function initCalculator() {
     const calcSection = document.getElementById('calculator');
     if (!calcSection) return;
@@ -197,15 +185,12 @@
   }
   
 
-  // --- Модуль: quiz.js ---
-  // =========================================================================
-  // Модуль интерактивного 5-шагового квиз-сметчика
-  // Автономен: если блок #quiz удален, модуль мягко выходит без ошибок
-  // =========================================================================
+  // quiz.js
+  // Quiz state and preliminary estimate calculation.
   
   function initQuiz() {
     const quizSection = document.getElementById('quiz');
-    if (!quizSection) return; // Безопасный выход, если квиз не на странице
+    if (!quizSection) return;
   
     const quizState = {
       step: 1,
@@ -216,7 +201,7 @@
       buildingName: 'ТРЦ / Торговый центр',
       area: 650,
       services: ['project', 'geodesy'],
-      calcNumber: 'ФС-' + Math.floor(1000 + Math.random() * 9000)
+      draftEstimateNumber: 'ПР-' + Math.floor(1000 + Math.random() * 9000)
     };
   
     const quizProgressBar = document.getElementById('quiz-progress-bar');
@@ -228,26 +213,20 @@
   
     const stepTitles = {
       1: { title: 'Какого плана работы необходимо организовать?', subtitle: 'Выберите основную категорию конструкции' },
-      2: { title: 'Какое назначение у вашего объекта?', subtitle: 'Определяет ветровые нагрузки и класс пожаробезопасности' },
+      2: { title: 'Какое назначение у вашего объекта?', subtitle: 'Тип объекта для предварительного подбора параметров' },
       3: { title: 'Ориентировочная площадь поверхности (м²)', subtitle: 'Укажите метраж для расчета объема материалов' },
-      4: { title: 'Какие сопутствующие работы требуются?', subtitle: 'Отметьте необходимые инженерные услуги' },
-      5: { title: 'Смета сформирована! Ваши условия зафиксированы', subtitle: 'Ознакомьтесь с предварительным расчетом стоимости' }
+      4: { title: 'Какие сопутствующие работы требуются?', subtitle: 'Отметьте необходимые сопутствующие услуги' },
+      5: { title: 'Предварительный расчет сформирован', subtitle: 'Ориентировочная стоимость материалов и монтажа' }
     };
   
     function updateQuizUI() {
-      // Показываем текущий шаг, скрываем остальные
       for (let i = 1; i <= quizState.maxStep; i++) {
         const stepEl = document.getElementById(`quiz-step-${i}`);
         if (stepEl) {
-          if (i === quizState.step) {
-            stepEl.classList.remove('hidden');
-          } else {
-            stepEl.classList.add('hidden');
-          }
+          stepEl.classList.toggle('hidden', i !== quizState.step);
         }
       }
   
-      // Прогресс
       if (quizProgressBar) {
         const pct = (quizState.step / quizState.maxStep) * 100;
         quizProgressBar.style.width = `${pct}%`;
@@ -262,51 +241,43 @@
         quizStepSubtitle.textContent = stepTitles[quizState.step].subtitle;
       }
   
-      // Кнопка назад
       if (quizPrevBtn) {
-        if (quizState.step === 1) {
-          quizPrevBtn.classList.add('opacity-40', 'pointer-events-none');
-        } else {
-          quizPrevBtn.classList.remove('opacity-40', 'pointer-events-none');
-        }
+        quizPrevBtn.classList.toggle('invisible', quizState.step === 1);
       }
-  
-      // Кнопка вперед / завершение
       if (quizNextBtn) {
-        if (quizState.step === quizState.maxStep) {
-          quizNextBtn.classList.add('hidden');
-        } else {
-          quizNextBtn.classList.remove('hidden');
-        }
+        quizNextBtn.classList.toggle('hidden', quizState.step === quizState.maxStep);
       }
   
-      // Если 5 шаг — пересчитываем финальную смету
-      if (quizState.step === 5) {
+      if (quizState.step === quizState.maxStep) {
         calculateQuizEstimate();
       }
     }
   
     function calculateQuizEstimate() {
-      let baseRateMin = 2400;
-      let baseRateMax = 3300;
+      let baseRateMin = 2200;
+      let baseRateMax = 3800;
   
-      if (quizState.type === 'facade') {
-        baseRateMin = 2500;
-        baseRateMax = 3700;
-      } else if (quizState.type === 'falshpol') {
-        baseRateMin = 2900;
+      if (quizState.type === 'composite') {
+        baseRateMin = 2600;
         baseRateMax = 4400;
-      } else if (quizState.type === 'complex') {
-        baseRateMin = 5200;
-        baseRateMax = 7800;
-      } else if (quizState.type === 'supply') {
-        baseRateMin = 1100;
-        baseRateMax = 1800;
+      } else if (quizState.type === 'cassette') {
+        baseRateMin = 2900;
+        baseRateMax = 4900;
+      } else if (quizState.type === 'terracotta') {
+        baseRateMin = 3400;
+        baseRateMax = 5800;
+      } else if (quizState.type === 'raised-floor') {
+        baseRateMin = 3200;
+        baseRateMax = 5500;
+      } else if (quizState.type === 'subsystem-only') {
+        baseRateMin = 650;
+        baseRateMax = 1400;
       }
   
       let servicesAddon = 0;
       if (quizState.services.includes('project')) servicesAddon += 150;
       if (quizState.services.includes('geodesy')) servicesAddon += 80;
+      if (quizState.services.includes('warm')) servicesAddon += 550;
       if (quizState.services.includes('dismantle')) servicesAddon += 350;
   
       const perMeter = baseRateMin + servicesAddon;
@@ -323,7 +294,7 @@
       const tagsEl = document.getElementById('quiz-result-tags');
       const hiddenSourceEl = document.getElementById('quiz-source-input');
   
-      if (codeEl) codeEl.textContent = `Расчет ${quizState.calcNumber}`;
+      if (codeEl) codeEl.textContent = `Черновик сметы ${quizState.draftEstimateNumber}`;
       if (totalEl) totalEl.textContent = totalMin.toLocaleString('ru-RU') + ' ₽';
       if (rangeEl) rangeEl.textContent = `до ${totalMax.toLocaleString('ru-RU')} ₽`;
       if (meterEl) meterEl.textContent = `от ${perMeter.toLocaleString('ru-RU')} ₽/м²`;
@@ -334,16 +305,15 @@
           <span class="bg-slate-800 text-brand-400 px-3 py-1 rounded-lg border border-slate-700 text-xs font-semibold">${quizState.typeName}</span>
           <span class="bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700 text-xs font-semibold">${quizState.buildingName}</span>
           <span class="bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700 text-xs font-semibold">${quizState.area.toLocaleString('ru-RU')} м²</span>
-          <span class="bg-slate-800 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700 text-xs font-semibold">Скидка 5% зафиксирована</span>
+          <span class="bg-slate-800 text-emerald-400 px-3 py-1 rounded-lg border border-slate-700 text-xs font-semibold">Скидка до 5% при заказе под ключ*</span>
         `;
       }
   
       if (hiddenSourceEl) {
-        hiddenSourceEl.value = `Квиз: ${quizState.typeName}, ${quizState.buildingName}, ${quizState.area} м², Номер ${quizState.calcNumber}`;
+        hiddenSourceEl.value = `Квиз: ${quizState.typeName}, ${quizState.buildingName}, ${quizState.area} м², Черновик ${quizState.draftEstimateNumber}`;
       }
     }
   
-    // Шаг 1: Выбор типа
     quizSection.querySelectorAll('.js-quiz-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         quizSection.querySelectorAll('.js-quiz-type-btn').forEach(b => b.classList.remove('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50'));
@@ -353,7 +323,6 @@
       });
     });
   
-    // Шаг 2: Назначение здания
     quizSection.querySelectorAll('.js-quiz-building-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         quizSection.querySelectorAll('.js-quiz-building-btn').forEach(b => b.classList.remove('quiz-card-selected', 'border-brand-600', 'bg-brand-50/50'));
@@ -363,7 +332,6 @@
       });
     });
   
-    // Шаг 3: Площадь пресеты и инпут
     const quizAreaInput = document.getElementById('quiz-exact-area');
     quizSection.querySelectorAll('.js-quiz-area-card').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -385,7 +353,6 @@
       });
     }
   
-    // Шаг 4: Чекбоксы услуг
     quizSection.querySelectorAll('.js-quiz-service-check').forEach(chk => {
       chk.addEventListener('change', () => {
         const srv = chk.value;
@@ -397,7 +364,6 @@
       });
     });
   
-    // Кнопки навигации шагов
     if (quizNextBtn) {
       quizNextBtn.addEventListener('click', () => {
         if (quizState.step < quizState.maxStep) {
@@ -420,12 +386,8 @@
   }
   
 
-  // --- Модуль: portfolio.js ---
-  // =========================================================================
-  // Модуль фильтрации портфолио
-  // Автономен: если блок портфолио удален, модуль мягко выходит без ошибок
-  // =========================================================================
-  
+  // portfolio.js
+  // Portfolio category filter.
   function initPortfolio() {
     const filterBtns = document.querySelectorAll('.js-portfolio-filter');
     const portfolioItems = document.querySelectorAll('.js-portfolio-item');
@@ -455,12 +417,8 @@
   }
   
 
-  // --- Модуль: lightbox.js ---
-  // =========================================================================
-  // Модуль просмотра фотографий (Photo Lightbox)
-  // Автономен: если модалка #lightbox-modal не найдена, модуль не выполняется
-  // =========================================================================
-  
+  // lightbox.js
+  // Fullscreen image lightbox modal.
   function initLightbox() {
     const lightboxModal = document.getElementById('lightbox-modal');
     if (!lightboxModal) return;
@@ -510,12 +468,8 @@
   }
   
 
-  // --- Модуль: floating-dock.js ---
-  // =========================================================================
-  // Модуль плавающего дока быстрой связи и кнопки «Наверх»
-  // Автономен: если виджет удален из разметки, модуль не вызывает ошибок
-  // =========================================================================
-  
+  // floating-dock.js
+  // Floating contact widget and scroll-to-top button.
   function initFloatingDock() {
     const dockTrigger = document.getElementById('dock-trigger');
     const dockMenu = document.getElementById('dock-menu');
@@ -592,12 +546,8 @@
   }
   
 
-  // --- Модуль: uploader.js ---
-  // =========================================================================
-  // Модуль загрузки файлов ТЗ и проектной документации
-  // Поддерживает drag-and-drop, валидацию формата и размера (до 35 МБ)
-  // =========================================================================
-  
+  // uploader.js
+  // File input and drag-and-drop handling.
   function initUploader() {
     const dropzones = document.querySelectorAll('.js-file-dropzone');
     if (!dropzones.length) return;
@@ -710,20 +660,14 @@
   }
   
 
-  // --- Модуль: forms.js ---
-  // =========================================================================
-  // Модуль обработки форм и отправки заявок в ПТО
-  // Выполняет реальный запрос к API, отправляет файлы ТЗ (multipart/form-data)
-  // и показывает статус успеха СТРОГО после подтверждения сервера (HTTP 200).
-  // =========================================================================
-  
+  // forms.js
+  // Обработка форм заявок и отправка данных в API.
   
   
   function initForms() {
     const leadModal = document.getElementById('lead-modal');
     const modalServiceTitle = document.getElementById('modal-service-title');
   
-    // Управление модальным окном стандартной заявки
     if (leadModal) {
       document.querySelectorAll('.js-open-modal').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -751,13 +695,11 @@
       });
     }
   
-    // Обработчик отправки всех форм с классом .js-lead-form
     const leadForms = document.querySelectorAll('.js-lead-form');
     leadForms.forEach(form => {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
   
-        // Сброс предыдущих ошибок
         form.querySelectorAll('.error-msg').forEach(el => el.classList.add('hidden'));
         const globalErrorEl = form.querySelector('.js-form-global-error');
         if (globalErrorEl) globalErrorEl.classList.add('hidden');
@@ -768,24 +710,23 @@
         const agreeInput = form.querySelector('input[name="agreement"]');
         const submitBtn = form.querySelector('button[type="submit"]');
   
-        // 1. Валидация имени
         if (nameInput && !nameInput.value.trim()) {
           const err = form.querySelector(`#error-${nameInput.id}`) || form.querySelector(`#error-${nameInput.name}`);
           if (err) err.classList.remove('hidden');
           hasError = true;
         }
   
-        // 2. Валидация телефона (минимум 10 цифр)
         if (phoneInput) {
-          const phoneDigits = phoneInput.value.trim().replace(/\D/g, '');
-          if (phoneDigits.length < 10) {
+          const digits = phoneInput.value.trim().replace(/\D/g, '');
+          const isValidPhone = (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) ||
+                               (digits.length === 10 && digits.startsWith('9'));
+          if (!isValidPhone) {
             const err = form.querySelector(`#error-${phoneInput.id}`) || form.querySelector(`#error-${phoneInput.name}`);
             if (err) err.classList.remove('hidden');
             hasError = true;
           }
         }
   
-        // 3. Валидация согласия на обработку ПДн
         if (agreeInput && !agreeInput.checked) {
           const err = form.querySelector(`#error-${agreeInput.id}`) || form.querySelector(`#error-${agreeInput.name}`);
           if (err) err.classList.remove('hidden');
@@ -794,10 +735,8 @@
   
         if (hasError) return;
   
-        // Формирование данных формы через FormData (поддержка прикрепленного файла ТЗ)
         const formData = new FormData(form);
   
-        // Состояние загрузки кнопки
         const originalBtnHtml = submitBtn.innerHTML;
         submitBtn.disabled = true;
         submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
@@ -806,18 +745,17 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          Отправка в ПТО...
+          Отправка...
         `;
   
         try {
-          // РЕАЛЬНЫЙ сетевой запрос к бэкенду
           const response = await fetch(CONFIG.API_URL, {
             method: 'POST',
             body: formData
           });
   
           if (!response.ok) {
-            let errorMsg = `Сервер ответил с ошибкой (код ${response.status})`;
+            let errorMsg = `Сервер вернул ошибку (${response.status})`;
             try {
               const errData = await response.json();
               if (errData && errData.error) errorMsg = errData.error;
@@ -826,15 +764,11 @@
           }
   
           const result = await response.json();
-          if (!result.success) {
-            throw new Error(result.error || 'Ошибка регистрации заявки на сервере');
+          if (!result.success || !result.leadId) {
+            throw new Error(result.error || 'Сервер не вернул подтверждение или номер заявки');
           }
   
-          // УСПЕХ: отображаем подтверждение ТОЛЬКО после реального ответа сервера
           const formContainer = form.closest('.form-container') || form;
-          const leadRef = result.leadId || 'ФС-' + Math.floor(1000 + Math.random() * 9000);
-          const attachedFile = form.querySelector('input[type="file"]')?.files[0];
-  
           formContainer.innerHTML = `
             <div class="p-8 text-center bg-white rounded-3xl border border-slate-200 shadow-xl animate-in fade-in duration-300">
               <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -843,22 +777,16 @@
                 </svg>
               </div>
               <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-1">
-                Заявка зарегистрирована в системе
+                Заявка принята
               </span>
-              <h3 class="text-2xl font-bold font-heading text-slate-900 mb-1">
-                Номер листа: ${leadRef}
-              </h3>
+              <h3 class="text-2xl font-bold font-heading text-slate-900 mb-1 js-success-lead-id"></h3>
               <p class="text-slate-600 mb-5 max-w-md mx-auto text-sm leading-relaxed">
                 Данные переданы дежурному инженеру ПТО ООО «ФЕДСТРОЙ». Мы свяжемся с вами в рабочее время (пн–пт с 9:00 до 18:00 МСК).
               </p>
-  
-              ${attachedFile ? `
-                <div class="inline-flex items-center gap-2 text-xs text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl mb-5">
-                  <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-                  <span>Файл ТЗ принят: <strong>${attachedFile.name}</strong></span>
-                </div>
-              ` : ''}
-  
+              <div class="js-attached-file-badge hidden inline-flex items-center gap-2 text-xs text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl mb-5">
+                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Файл ТЗ принят: <strong class="js-attached-file-name"></strong></span>
+              </div>
               <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs sm:text-sm">
                 <span class="text-slate-500">Срочный вопрос?</span>
                 <a href="tel:+78007000223" class="font-bold text-brand-600 hover:text-brand-700">8 (800) 700-02-23</a>
@@ -868,15 +796,26 @@
             </div>
           `;
   
-        } catch (err) {
-          console.error('[Form Submit Error]:', err);
+          const leadIdEl = formContainer.querySelector('.js-success-lead-id');
+          if (leadIdEl) leadIdEl.textContent = `Номер заявки: ${result.leadId}`;
   
-          // Восстанавливаем кнопку
+          const attachedFile = form.querySelector('input[type="file"]')?.files[0];
+          if (attachedFile) {
+            const badge = formContainer.querySelector('.js-attached-file-badge');
+            const nameSpan = formContainer.querySelector('.js-attached-file-name');
+            if (badge && nameSpan) {
+              nameSpan.textContent = attachedFile.name;
+              badge.classList.remove('hidden');
+            }
+          }
+  
+        } catch (err) {
+          console.error('[forms] Ошибка отправки:', err);
+  
           submitBtn.disabled = false;
           submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
           submitBtn.innerHTML = originalBtnHtml;
   
-          // Показываем сообщение об ошибке, НЕ сбрасывая введенные пользователем данные
           let errBox = form.querySelector('.js-form-global-error');
           if (!errBox) {
             errBox = document.createElement('div');
@@ -889,7 +828,7 @@
               <svg class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <div>
                 <p class="font-bold mb-1">Не удалось отправить заявку</p>
-                <p class="text-xs text-red-600 mb-2 leading-relaxed">${err.message || 'Проверьте соединение с интернетом или повторите попытку.'}</p>
+                <p class="text-xs text-red-600 mb-2 leading-relaxed js-error-text"></p>
                 <div class="flex flex-wrap items-center gap-3 pt-1 border-t border-red-200/60 text-xs">
                   <span>Прямая связь с ПТО:</span>
                   <a href="tel:+78007000223" class="font-bold underline text-red-800 hover:text-red-900">8 (800) 700-02-23</a>
@@ -898,6 +837,10 @@
               </div>
             </div>
           `;
+          const errTextEl = errBox.querySelector('.js-error-text');
+          if (errTextEl) {
+            errTextEl.textContent = err.message || 'Проверьте соединение с интернетом или повторите попытку.';
+          }
           errBox.classList.remove('hidden');
         }
       });
@@ -906,13 +849,13 @@
   
 
   document.addEventListener('DOMContentLoaded', () => {
-    try { initNavigation(); } catch (e) { console.warn('[FedStroy Module initNavigation Error]:', e); }
-    try { initCalculator(); } catch (e) { console.warn('[FedStroy Module initCalculator Error]:', e); }
-    try { initQuiz(); } catch (e) { console.warn('[FedStroy Module initQuiz Error]:', e); }
-    try { initPortfolio(); } catch (e) { console.warn('[FedStroy Module initPortfolio Error]:', e); }
-    try { initLightbox(); } catch (e) { console.warn('[FedStroy Module initLightbox Error]:', e); }
-    try { initFloatingDock(); } catch (e) { console.warn('[FedStroy Module initFloatingDock Error]:', e); }
-    try { initUploader(); } catch (e) { console.warn('[FedStroy Module initUploader Error]:', e); }
-    try { initForms(); } catch (e) { console.warn('[FedStroy Module initForms Error]:', e); }
+    initNavigation();
+    initCalculator();
+    initQuiz();
+    initPortfolio();
+    initLightbox();
+    initFloatingDock();
+    initUploader();
+    initForms();
   });
 })();

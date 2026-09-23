@@ -1,8 +1,4 @@
-// =========================================================================
-// Модуль загрузки файлов ТЗ и проектной документации
-// Поддерживает drag-and-drop, валидацию формата и размера (до 35 МБ)
-// =========================================================================
-
+// File input and drag-and-drop handling.
 export function initUploader() {
   const dropzones = document.querySelectorAll('.js-file-dropzone');
   if (!dropzones.length) return;

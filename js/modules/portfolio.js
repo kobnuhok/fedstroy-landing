@@ -1,8 +1,4 @@
-// =========================================================================
-// Модуль фильтрации портфолио
-// Автономен: если блок портфолио удален, модуль мягко выходит без ошибок
-// =========================================================================
-
+// Portfolio category filter.
 export function initPortfolio() {
   const filterBtns = document.querySelectorAll('.js-portfolio-filter');
   const portfolioItems = document.querySelectorAll('.js-portfolio-item');

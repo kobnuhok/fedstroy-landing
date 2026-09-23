@@ -1,8 +1,4 @@
-// =========================================================================
-// Модуль просмотра фотографий (Photo Lightbox)
-// Автономен: если модалка #lightbox-modal не найдена, модуль не выполняется
-// =========================================================================
-
+// Fullscreen image lightbox modal.
 export function initLightbox() {
   const lightboxModal = document.getElementById('lightbox-modal');
   if (!lightboxModal) return;

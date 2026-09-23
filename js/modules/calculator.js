@@ -1,8 +1,4 @@
-// =========================================================================
-// Модуль ориентировочного расчета стоимости подсистемы и материалов
-// Расчет носит ознакомительный характер на основе средних норм расхода.
-// =========================================================================
-
+// Cost estimator logic based on material, subsystem and area.
 export function initCalculator() {
   const calcSection = document.getElementById('calculator');
   if (!calcSection) return;

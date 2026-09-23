@@ -1,8 +1,4 @@
-// =========================================================================
-// Модуль навигации и мобильного меню
-// Автономен: работает, только если элементы присутствуют в разметке
-// =========================================================================
-
+// Mobile menu and smooth scroll navigation.
 export function initNavigation() {
   const mobileMenuBtn = document.getElementById('mobile-menu-btn');
   const mobileMenu = document.getElementById('mobile-menu');
