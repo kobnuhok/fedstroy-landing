@@ -275,7 +275,7 @@ app.post('/api/lead', (req, res, next) => {
     return res.status(200).json({
       success: true,
       leadId,
-      message: 'Заявка успешно зарегистрирована и передана инженеру ПТО.'
+      message: 'Заявка зарегистрирована. Инженер ПТО получит уведомление.'
     });
   } catch (err) {
     console.error('[lead:process:error]', err);

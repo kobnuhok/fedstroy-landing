@@ -781,7 +781,7 @@
               </span>
               <h3 class="text-2xl font-bold font-heading text-slate-900 mb-1 js-success-lead-id"></h3>
               <p class="text-slate-600 mb-5 max-w-md mx-auto text-sm leading-relaxed">
-                Данные переданы дежурному инженеру ПТО ООО «ФЕДСТРОЙ». Мы свяжемся с вами в рабочее время (пн–пт с 9:00 до 18:00 МСК).
+                Заявка зарегистрирована в системе ООО «ФЕДСТРОЙ». Инженер ПТО получит уведомление и свяжется с вами в рабочее время (пн–пт, 9:00–18:00 МСК).
               </p>
               <div class="js-attached-file-badge hidden inline-flex items-center gap-2 text-xs text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl mb-5">
                 <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
