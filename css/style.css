@@ -91,16 +91,18 @@ input[type="range"]::-moz-range-thumb {
   transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
 }
 
-.quiz-card-selected {
-  border-color: #f97316 !important;
-  background-color: rgba(249, 115, 22, 0.18) !important;
-  box-shadow: 0 0 0 2px #f97316, 0 8px 24px rgba(249, 115, 22, 0.25) !important;
-}
-
-/* Гарантированный контраст карточек квиза в темной теме */
+/* Карточки квиза в темной теме — без остаточного/постоянного выделения */
 .quiz-step button {
   background-color: rgba(30, 41, 59, 0.6) !important;
   color: #ffffff !important;
+  outline: none !important;
+}
+
+.quiz-step button:focus,
+.quiz-step button:focus-visible,
+.quiz-step button:active {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .quiz-step button h4 {
@@ -109,18 +111,6 @@ input[type="range"]::-moz-range-thumb {
 
 .quiz-step button p {
   color: #94a3b8 !important;
-}
-
-.quiz-step button.quiz-card-selected {
-  background-color: rgba(249, 115, 22, 0.18) !important;
-}
-
-.quiz-step button.quiz-card-selected h4 {
-  color: #fed7aa !important;
-}
-
-.quiz-step button.quiz-card-selected p {
-  color: #f8fafc !important;
 }
 
 /* Floating Contact Dock */
