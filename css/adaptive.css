@@ -23,14 +23,20 @@
 
 /* Планшеты и компактные ноутбуки */
 @media (min-width: 1024px) {
+  html {
+    font-size: 18px; /* +1.5pt масштабирование для ноутбуков */
+  }
   .page-container {
     padding-left: 3rem;
     padding-right: 3rem;
   }
 }
 
-/* Стандартные ноутбуки (13"–15", 1366x768 / 1440x900) */
+/* Стандартные ноутбуки и большие мониторы (1280px+) — увеличение всех шрифтов на 2pt (12pt -> 14pt / 16px -> 18.667px) */
 @media (min-width: 1280px) {
+  html {
+    font-size: 18.667px; /* ровно +2pt от стандартных 16px */
+  }
   .page-container {
     max-width: 1440px;
     padding-left: 3.5rem;
