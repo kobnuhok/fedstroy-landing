@@ -242,7 +242,13 @@
       }
   
       if (quizPrevBtn) {
-        quizPrevBtn.classList.toggle('invisible', quizState.step === 1);
+        if (quizState.step === 1) {
+          quizPrevBtn.classList.add('invisible');
+          quizPrevBtn.setAttribute('aria-hidden', 'true');
+        } else {
+          quizPrevBtn.classList.remove('invisible');
+          quizPrevBtn.removeAttribute('aria-hidden');
+        }
       }
       if (quizNextBtn) {
         quizNextBtn.classList.toggle('hidden', quizState.step === quizState.maxStep);
@@ -316,6 +322,8 @@
   
     quizSection.querySelectorAll('.js-quiz-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
+        quizSection.querySelectorAll('.js-quiz-type-btn').forEach(b => b.classList.remove('quiz-card-selected'));
+        btn.classList.add('quiz-card-selected');
         quizState.type = btn.getAttribute('data-type');
         quizState.typeName = btn.getAttribute('data-name');
       });
@@ -323,6 +331,8 @@
   
     quizSection.querySelectorAll('.js-quiz-building-btn').forEach(btn => {
       btn.addEventListener('click', () => {
+        quizSection.querySelectorAll('.js-quiz-building-btn').forEach(b => b.classList.remove('quiz-card-selected'));
+        btn.classList.add('quiz-card-selected');
         quizState.building = btn.getAttribute('data-building');
         quizState.buildingName = btn.getAttribute('data-name');
       });
@@ -331,6 +341,8 @@
     const quizAreaInput = document.getElementById('quiz-exact-area');
     quizSection.querySelectorAll('.js-quiz-area-card').forEach(btn => {
       btn.addEventListener('click', () => {
+        quizSection.querySelectorAll('.js-quiz-area-card').forEach(b => b.classList.remove('quiz-card-selected'));
+        btn.classList.add('quiz-card-selected');
         const val = parseInt(btn.getAttribute('data-area'), 10);
         quizState.area = val;
         if (quizAreaInput) quizAreaInput.value = val;
@@ -342,6 +354,7 @@
         const val = parseInt(e.target.value, 10);
         if (val && val > 0) {
           quizState.area = val;
+          quizSection.querySelectorAll('.js-quiz-area-card').forEach(b => b.classList.remove('quiz-card-selected'));
         }
       });
     }
@@ -358,7 +371,8 @@
     });
   
     if (quizNextBtn) {
-      quizNextBtn.addEventListener('click', () => {
+      quizNextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         if (quizState.step < quizState.maxStep) {
           quizState.step++;
           updateQuizUI();
@@ -367,7 +381,8 @@
     }
   
     if (quizPrevBtn) {
-      quizPrevBtn.addEventListener('click', () => {
+      quizPrevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         if (quizState.step > 1) {
           quizState.step--;
           updateQuizUI();

@@ -118,7 +118,32 @@ async function runDomE2ESuite() {
         .replace('export function initQuiz', 'function initQuiz');
       win.eval(quizCode + '; initQuiz();');
 
+      const typeBtns = doc.querySelectorAll('.js-quiz-type-btn');
+      typeBtns[1].click(); // Фальшпол
+      if (!typeBtns[1].classList.contains('quiz-card-selected')) {
+        throw new Error('Карточка не получила класс quiz-card-selected после клика');
+      }
+      typeBtns[3].click(); // Поставка подсистемы
+      if (!typeBtns[3].classList.contains('quiz-card-selected')) {
+        throw new Error('Карточка поставки не получила класс quiz-card-selected');
+      }
+      if (typeBtns[1].classList.contains('quiz-card-selected')) {
+        throw new Error('Предыдущая карточка не сбросила класс quiz-card-selected');
+      }
+
       const nextBtn = doc.getElementById('quiz-next-btn');
+      const prevBtn = doc.getElementById('quiz-prev-btn');
+
+      // Проверка кнопки Назад: Шаг 1 -> 2 -> 1
+      nextBtn.click();
+      if (prevBtn.classList.contains('invisible')) {
+        throw new Error('Кнопка Назад не стала видимой на Шаге 2');
+      }
+      prevBtn.click();
+      if (!prevBtn.classList.contains('invisible')) {
+        throw new Error('Кнопка Назад не скрылась при возврате на Шаг 1');
+      }
+
       // Шаг 1 -> 2 -> 3 -> 4 -> 5
       nextBtn.click();
       nextBtn.click();
