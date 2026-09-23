@@ -131,12 +131,21 @@ app.post('/api/lead', (req, res, next) => {
     const { name, phone, service, area, building, comment, source } = req.body;
     const attachedFile = (req.files && req.files.length > 0) ? req.files[0] : null;
 
-    // Валидация телефона
     const phoneClean = (phone || '').replace(/\D/g, '');
-    if (phoneClean.length < 10) {
+    const isValidPhone = (phoneClean.length === 11 && (phoneClean.startsWith('7') || phoneClean.startsWith('8'))) ||
+                         (phoneClean.length === 10 && phoneClean.startsWith('9'));
+    if (!isValidPhone) {
       return res.status(400).json({
         success: false,
-        error: 'Пожалуйста, укажите корректный контактный номер телефона (не менее 10 цифр).'
+        error: 'Пожалуйста, укажите корректный контактный номер телефона РФ (10–11 цифр).'
+      });
+    }
+
+    if (attachedFile && attachedFile.size === 0) {
+      try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      return res.status(400).json({
+        success: false,
+        error: 'Прикрепленный файл пуст (0 байт). Пожалуйста, выберите корректный файл проекта.'
       });
     }
 

@@ -8,7 +8,8 @@
     "build": "node build.js",
     "build:css": "npx @tailwindcss/cli -i src/input.css -o css/tailwind.css --minify",
     "dev": "node server.js",
-    "watch": "node build.js --watch"
+    "watch": "node build.js --watch",
+    "test": "node test/test-scenarios.js"
   },
   "keywords": [
     "fedstroy",
