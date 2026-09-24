@@ -991,13 +991,19 @@ async function runAllTests() {
       }
     });
 
-    await testCase('6.18. Защита от утечки памяти: аварийный сброс в файл при превышении MAX_UNPERSISTED_PATCHES', async () => {
+    await testCase('6.18. Защита от утечки памяти: жесткий лимит Map (<=1000) при добавлении 1001-й записи в emergency-файл', async () => {
       const serverApp = require('../server');
       const overflowLeadId = `ФС-OVERFLOW-${Date.now()}`;
 
-      // Наполняем буфер до 1000 элементов
+      // Очищаем буфер
+      serverApp.unpersistedNotificationPatches.clear();
+
+      // Наполняем буфер ровно до 1000 элементов
       for (let i = 0; i < 1000; i++) {
         serverApp.unpersistedNotificationPatches.set(`DUMMY-${i}`, { telegram: 'sent' });
+      }
+      if (serverApp.unpersistedNotificationPatches.size !== 1000) {
+        throw new Error(`Ожидался размер 1000, получено: ${serverApp.unpersistedNotificationPatches.size}`);
       }
 
       // Добавляем 1001-й элемент через enqueueUnpersistedNotificationPatch
@@ -1007,6 +1013,15 @@ async function runAllTests() {
         telegramMessageId: 999999
       });
 
+      // ПРОВЕРКА 1: размер Map НЕ превышает 1000!
+      if (serverApp.unpersistedNotificationPatches.size > 1000) {
+        throw new Error(`Размер unpersistedNotificationPatches превысил лимит: ${serverApp.unpersistedNotificationPatches.size}`);
+      }
+      if (serverApp.unpersistedNotificationPatches.has(overflowLeadId)) {
+        throw new Error('1001-й элемент попал в Map вопреки лимиту');
+      }
+
+      // ПРОВЕРКА 2: аварийный файл создан и содержит 1001-й элемент
       const emergencyPath = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
       if (!fs.existsSync(emergencyPath)) {
         throw new Error('Аварийный файл unpersisted_patches_emergency.json не был создан при превышении лимита!');
@@ -1017,17 +1032,253 @@ async function runAllTests() {
         throw new Error('Данные заявки не найдены в аварийном файле!');
       }
 
-      // Очищаем фиктивные записи
-      for (let i = 0; i < 1000; i++) {
-        serverApp.unpersistedNotificationPatches.delete(`DUMMY-${i}`);
+      // ПРОВЕРКА 3: getUnpersistedNotificationPatch находит запись из аварийного файла
+      const foundPatch = serverApp.getUnpersistedNotificationPatch(overflowLeadId);
+      if (!foundPatch || foundPatch.telegramMessageId !== 999999) {
+        throw new Error('getUnpersistedNotificationPatch не смог найти запись из аварийного файла!');
       }
 
-      // При flush аварийный файл считывается и удаляется
-      serverApp.flushUnpersistedNotificationPatches();
+      // Очищаем фиктивные записи
+      serverApp.unpersistedNotificationPatches.clear();
       if (fs.existsSync(emergencyPath)) {
-        throw new Error('Аварийный файл не был удален после flush!');
+        try { fs.unlinkSync(emergencyPath); } catch (_) {}
       }
-      serverApp.unpersistedNotificationPatches.delete(overflowLeadId);
+    });
+
+    await testCase('6.19. Сохранение аварийного файла при повторном сбое диска во время flush', async () => {
+      const serverApp = require('../server');
+      const emergencyLeadId = `ФС-EMERGENCY-${Date.now()}`;
+      const emergencyPath = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+
+      // Создаем заявку в leads.json
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      leads.push({
+        leadId: emergencyLeadId,
+        name: 'Клиент Emergency Flush',
+        phone: '+7 (916) 444-55-66',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        },
+        file: null
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // Создаем аварийный файл с данными
+      const emergencyData = {
+        [emergencyLeadId]: {
+          telegram: 'sent',
+          email: 'sent',
+          telegramMessageId: 777111
+        }
+      };
+      fs.writeFileSync(emergencyPath, JSON.stringify(emergencyData, null, 2), 'utf8');
+
+      // Имитируем сбой диска во время flush
+      const originalRenameSync = fs.renameSync;
+      fs.renameSync = () => {
+        throw new Error('EACCES: permission denied, disk locked during emergency flush');
+      };
+
+      try {
+        const flushResult = serverApp.flushUnpersistedNotificationPatches();
+        if (flushResult !== false) {
+          throw new Error('flushUnpersistedNotificationPatches должен вернуть false при сбое диска');
+        }
+
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: аварийный файл НЕ должен быть удален!
+        if (!fs.existsSync(emergencyPath)) {
+          throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ: аварийный файл был удален, несмотря на ошибку сохранения на диск!');
+        }
+      } finally {
+        fs.renameSync = originalRenameSync;
+      }
+
+      // Теперь диск исправен: повторный flush успешно сохраняет данные и удаляет аварийный файл
+      const flushOk = serverApp.flushUnpersistedNotificationPatches();
+      if (!flushOk) {
+        throw new Error('Повторный flush после восстановления диска завершился ошибкой');
+      }
+      if (fs.existsSync(emergencyPath)) {
+        throw new Error('Аварийный файл не был удален после успешного flush!');
+      }
+
+      // Проверяем leads.json
+      const flushedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const flushedLead = flushedLeads.find(l => l.leadId === emergencyLeadId);
+      if (!flushedLead || flushedLead.notifications.telegram !== 'sent' || flushedLead.notifications.telegramMessageId !== 777111) {
+        throw new Error(`Данные не попали в leads.json: ${JSON.stringify(flushedLead)}`);
+      }
+    });
+
+    await testCase('6.20. Обработка исключений в retry: отклоненный промис (rejected) увеличивает attempts и ставит failed', async () => {
+      const serverApp = require('../server');
+      const rejectLeadId = `ФС-TEST-REJECT-${Date.now()}`;
+
+      // Записываем заявку со статусом failed и attempts: 1
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      leads.push({
+        leadId: rejectLeadId,
+        name: 'Клиент Исключение Retry',
+        phone: '+7 (916) 111-22-33',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'failed',
+          email: 'failed',
+          attempts: { telegram: 1, email: 1 },
+          updatedAt: new Date().toISOString()
+        },
+        file: null
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // Перехватываем sendToTelegram и sendToEmail, заставляя их выбрасывать исключение (reject)
+      const origSendTelegram = serverApp.sendToTelegram;
+      const origSendEmail = serverApp.sendToEmail;
+      serverApp.sendToTelegram = () => Promise.reject(new Error('Fatal Network Breakdown'));
+      serverApp.sendToEmail = () => Promise.reject(new Error('SMTP Socket Timeout'));
+
+      try {
+        await serverApp.retryPendingNotifications(true);
+      } finally {
+        serverApp.sendToTelegram = origSendTelegram;
+        serverApp.sendToEmail = origSendEmail;
+      }
+
+      const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const leadAfterRetry = updatedLeads.find(l => l.leadId === rejectLeadId);
+      if (!leadAfterRetry) throw new Error('Заявка не найдена в leads.json');
+
+      if (leadAfterRetry.notifications.attempts?.telegram !== 2) {
+        throw new Error(`Ожидался attempts.telegram === 2, получено: ${leadAfterRetry.notifications.attempts?.telegram}`);
+      }
+      if (leadAfterRetry.notifications.attempts?.email !== 2) {
+        throw new Error(`Ожидался attempts.email === 2, получено: ${leadAfterRetry.notifications.attempts?.email}`);
+      }
+      if (leadAfterRetry.notifications.telegramDocError !== 'Fatal Network Breakdown') {
+        throw new Error(`Ожидался telegramDocError === 'Fatal Network Breakdown', получено: ${leadAfterRetry.notifications.telegramDocError}`);
+      }
+      if (leadAfterRetry.notifications.emailError !== 'SMTP Socket Timeout') {
+        throw new Error(`Ожидался emailError === 'SMTP Socket Timeout', получено: ${leadAfterRetry.notifications.emailError}`);
+      }
+    });
+
+    await testCase('6.21. Изоляция recovery: мьютекс activeRecoveryLeadIds предотвращает параллельную обработку одной заявки', async () => {
+      const serverApp = require('../server');
+      const concurrentLeadId = `ФС-TEST-CONCURR-${Date.now()}`;
+
+      // Добавляем заявку в leads.json
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      leads.push({
+        leadId: concurrentLeadId,
+        name: 'Клиент Параллельный Свип',
+        phone: '+7 (916) 555-66-77',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        },
+        file: null
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // Имитируем, что эта заявка уже захвачена другим активным sweep'ом
+      serverApp.activeRecoveryLeadIds.add(concurrentLeadId);
+
+      let sendCalled = false;
+      const origSendTelegram = serverApp.sendToTelegram;
+      serverApp.sendToTelegram = (l) => {
+        if (l.leadId === concurrentLeadId) sendCalled = true;
+        return origSendTelegram(l);
+      };
+
+      try {
+        await serverApp.retryPendingNotifications(true);
+        if (sendCalled) {
+          throw new Error('sendToTelegram был вызван для заявки, которая уже находилась в activeRecoveryLeadIds!');
+        }
+      } finally {
+        serverApp.sendToTelegram = origSendTelegram;
+        serverApp.activeRecoveryLeadIds.delete(concurrentLeadId);
+      }
+    });
+
+    await testCase('6.22. Сохранение файла вложения при retryable статусах (failed/partial) и его удаление только после sent', async () => {
+      const serverApp = require('../server');
+      const fileRetryLeadId = `ФС-TEST-FILE-PRESERVE-${Date.now()}`;
+      const testFilename = `preserve_me_${Date.now()}.dwg`;
+      const testFilePath = path.join(TEST_UPLOADS_DIR, testFilename);
+      fs.writeFileSync(testFilePath, 'dummy dwg content for preservation check');
+
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      leads.push({
+        leadId: fileRetryLeadId,
+        name: 'Клиент Сохранение Файла',
+        phone: '+7 (916) 333-44-55',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'failed',
+          email: 'failed',
+          attempts: { telegram: 1, email: 1 },
+          updatedAt: new Date().toISOString()
+        },
+        file: {
+          originalName: 'project.dwg',
+          filename: testFilename,
+          size: 1024
+        }
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      const origSendTelegram = serverApp.sendToTelegram;
+      const origSendEmail = serverApp.sendToEmail;
+      const origKeep = process.env.KEEP_UPLOADED_FILES;
+      process.env.KEEP_UPLOADED_FILES = 'false';
+
+      // 1. При повторной ошибке (failed) файл ОБЯЗАН сохраниться!
+      serverApp.sendToTelegram = () => Promise.resolve({ fullyDelivered: false, messageSent: false, error: 'Network error' });
+      serverApp.sendToEmail = () => Promise.resolve({ sent: false, error: 'SMTP timeout' });
+
+      try {
+        await serverApp.retryPendingNotifications(true);
+
+        if (!fs.existsSync(testFilePath)) {
+          throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ: файл вложения был удален, хотя статусы failed и допускают еще одну попытку (attempts=2 < 3)!');
+        }
+
+        // 2. Теперь доставка успешна (sent)
+        serverApp.sendToTelegram = () => Promise.resolve({ fullyDelivered: true, messageSent: true, documentSent: true, messageId: 12345 });
+        serverApp.sendToEmail = () => Promise.resolve({ sent: true, messageId: 'smtp-ok-final' });
+
+        await serverApp.retryPendingNotifications(true);
+
+        const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const lead = updatedLeads.find(l => l.leadId === fileRetryLeadId);
+        if (lead.notifications.telegram !== 'sent' || lead.notifications.email !== 'sent') {
+          throw new Error(`Ожидались sent статусы, получено: ${JSON.stringify(lead.notifications)}`);
+        }
+
+        // Файл теперь удален, так как все каналы завершены
+        if (fs.existsSync(testFilePath)) {
+          throw new Error('Файл не был удален после успешной доставки через retry');
+        }
+      } finally {
+        serverApp.sendToTelegram = origSendTelegram;
+        serverApp.sendToEmail = origSendEmail;
+        process.env.KEEP_UPLOADED_FILES = origKeep;
+        if (fs.existsSync(testFilePath)) {
+          try { fs.unlinkSync(testFilePath); } catch (_) {}
+        }
+      }
     });
 
   } finally {
