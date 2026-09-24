@@ -357,6 +357,23 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.3c. Проверка /api/health при leads.json не являющимся массивом ({}) -> 503 degraded', async () => {
+      // Записываем валидный JSON-объект, но не массив
+      fs.writeFileSync(DATA_FILE, '{"corrupted": true}');
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/health`);
+        if (res.status !== 503) throw new Error(`Ожидался статус 503 при не-массиве в leads.json, получен ${res.status}`);
+        const json = await res.json();
+        if (json.status !== 'degraded') throw new Error(`Ожидался status 'degraded', получен '${json.status}'`);
+        if (!json.storage || json.storage.ok !== false) {
+          throw new Error(`Ожидался storage.ok === false: ${JSON.stringify(json.storage)}`);
+        }
+      } finally {
+        fs.writeFileSync(DATA_FILE, '[]\n');
+      }
+    });
+
     await testCase('6.4. Проверка статуса email-уведомлений в /api/health и дублирования в /api/lead', async () => {
       const healthRes = await fetch(`${BASE_URL}/api/health`);
       const healthJson = await healthRes.json();
@@ -384,14 +401,20 @@ async function runAllTests() {
         '/data/leads.json',
         '/uploads/',
         '/src/template.html',
+        '/src/input.css',
         '/blocks/header.html',
+        '/test/test-scenarios.js',
         '/deploy/nginx.conf',
         '/scripts/smoke-leak-test.js',
         '/server.js',
         '/package.json',
         '/package-lock.json',
         '/ecosystem.config.js',
-        '/.env'
+        '/.env',
+        '/.env.example',
+        '/README.md',
+        '/playwright.config.js',
+        '/vercel.json'
       ];
 
       for (const ep of endpoints) {

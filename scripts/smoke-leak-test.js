@@ -14,13 +14,16 @@ const PROTECTED_PATHS = [
   '/blocks/header.html',
   '/test/test-scenarios.js',
   '/deploy/nginx.conf',
+  '/scripts/smoke-leak-test.js',
   '/server.js',
   '/package.json',
   '/package-lock.json',
   '/ecosystem.config.js',
   '/.env',
   '/.env.example',
-  '/README.md'
+  '/README.md',
+  '/playwright.config.js',
+  '/vercel.json'
 ];
 
 const PUBLIC_PATHS = [
@@ -71,7 +74,8 @@ async function runSmokeTest() {
     }
   }
 
-  console.log(`\n=== Результат Smoke-теста: ${passed} пройдено, ${failed} провалено ===\n`);
+  const total = PROTECTED_PATHS.length + PUBLIC_PATHS.length;
+  console.log(`\n=== Результат Smoke-теста: ${passed} из ${total} пройдено (${failed} провалено) ===\n`);
   if (failed > 0) process.exit(1);
 }
 

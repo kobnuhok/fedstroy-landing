@@ -179,8 +179,12 @@ function saveLead(newLead) {
   if (fs.existsSync(DATA_FILE)) {
     const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
     if (content) {
-      // Если файл повреждён — выбрасываем исключение, предотвращая потерю или порчу данных
-      leads = JSON.parse(content);
+      // Если файл повреждён или не является массивом — выбрасываем исключение
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed)) {
+        throw new Error('leads.json corrupted: expected JSON array');
+      }
+      leads = parsed;
     }
   }
 
@@ -565,7 +569,11 @@ app.get('/api/health', (req, res) => {
     } else {
       const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
       if (content) {
-        JSON.parse(content);
+        const parsed = JSON.parse(content);
+        if (!Array.isArray(parsed)) {
+          storageOk = false;
+          storageError = 'leads.json must contain a JSON array';
+        }
       }
     }
   } catch (err) {

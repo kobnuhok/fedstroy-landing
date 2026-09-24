@@ -11,7 +11,8 @@
     "watch": "node build.js --watch",
     "test": "node test/test-scenarios.js && node test/dom-e2e.js",
     "test:e2e": "npx playwright test",
-    "test:smoke": "node scripts/smoke-leak-test.js"
+    "test:smoke": "node scripts/smoke-leak-test.js",
+    "test:live-notify": "node scripts/live-notification-smoke.js"
   },
   "keywords": [
     "fedstroy",
