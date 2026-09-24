@@ -887,10 +887,6 @@
           const successView = document.createElement('div');
           successView.className = 'js-success-view text-center animate-in fade-in duration-300 relative py-2';
           successView.innerHTML = `
-            <button type="button" class="js-action-close-success absolute -top-2 right-0 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-  
             <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 mt-2">
               <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
