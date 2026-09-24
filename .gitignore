@@ -15,3 +15,6 @@ falshpol_text.txt
 Thumbs.db
 test-results/
 playwright-report/
+test/.tmp*
+
+

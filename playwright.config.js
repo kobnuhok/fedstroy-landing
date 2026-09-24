@@ -21,7 +21,13 @@ module.exports = defineConfig({
   webServer: {
     command: 'node server.js',
     url: 'http://localhost:8994/api/health',
-    env: { PORT: '8994', NODE_ENV: 'test' },
+    env: {
+      PORT: '8994',
+      NODE_ENV: 'test',
+      DATA_DIR: './test/.tmp_pw/data',
+      UPLOADS_DIR: './test/.tmp_pw/uploads',
+      KEEP_UPLOADED_FILES: 'false'
+    },
     reuseExistingServer: false,
     timeout: 15_000,
   },

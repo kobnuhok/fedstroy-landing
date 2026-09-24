@@ -6,15 +6,32 @@ const { JSDOM } = require('jsdom');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const INDEX_HTML_PATH = path.join(ROOT_DIR, 'index.html');
+const TEST_TMP_DIR = path.join(__dirname, '.tmp_dom');
+const TEST_DATA_DIR = path.join(TEST_TMP_DIR, 'data');
+const TEST_UPLOADS_DIR = path.join(TEST_TMP_DIR, 'uploads');
 const TEST_PORT = 8993;
 const BASE_URL = `http://localhost:${TEST_PORT}`;
 
+function cleanTestData() {
+  if (!fs.existsSync(TEST_DATA_DIR)) fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
+  if (!fs.existsSync(TEST_UPLOADS_DIR)) fs.mkdirSync(TEST_UPLOADS_DIR, { recursive: true });
+  fs.writeFileSync(path.join(TEST_DATA_DIR, 'leads.json'), '[]\n');
+}
+
 function startServer() {
+  cleanTestData();
   return new Promise((resolve, reject) => {
     const proc = spawn('node', ['server.js'], {
       cwd: ROOT_DIR,
       stdio: 'pipe',
-      env: { ...process.env, PORT: String(TEST_PORT), NODE_ENV: 'test' }
+      env: {
+        ...process.env,
+        PORT: String(TEST_PORT),
+        NODE_ENV: 'test',
+        DATA_DIR: TEST_DATA_DIR,
+        UPLOADS_DIR: TEST_UPLOADS_DIR,
+        KEEP_UPLOADED_FILES: 'true'
+      }
     });
 
     proc.stdout.on('data', d => {
@@ -463,6 +480,9 @@ async function runDomE2ESuite() {
 
   } finally {
     serverProc.kill();
+    if (fs.existsSync(TEST_TMP_DIR)) {
+      try { fs.rmSync(TEST_TMP_DIR, { recursive: true, force: true }); } catch (_) {}
+    }
   }
 
   console.log(`\n=== Результаты DOM E2E: ${passed} пройдено, ${failed} провалено ===\n`);

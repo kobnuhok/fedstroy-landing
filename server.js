@@ -70,8 +70,12 @@ function leadRateLimiter(req, res, next) {
 
 const isVercel = !!process.env.VERCEL;
 const KEEP_UPLOADED_FILES = process.env.KEEP_UPLOADED_FILES === 'true';
-const UPLOADS_DIR = isVercel ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
-const DATA_DIR = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
+const UPLOADS_DIR = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : (isVercel ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads'));
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : (isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data'));
 const DATA_FILE = path.join(DATA_DIR, 'leads.json');
 
 // Конфигурация дублирования заявок на корпоративную почту (SMTP)
@@ -124,39 +128,41 @@ function validateFileContent(filePath, originalName) {
     const bytesRead = fs.readSync(fd, buffer, 0, 16, 0);
     fs.closeSync(fd);
 
-    if (bytesRead < 2) return { valid: true };
-
     // 1. Проверка на исполняемые файлы (Windows PE: MZ, Linux ELF: \x7fELF, shebang: #!)
-    const isPE = buffer[0] === 0x4D && buffer[1] === 0x5A; // MZ
-    const isELF = buffer[0] === 0x7F && buffer[1] === 0x45 && buffer[2] === 0x4C && buffer[3] === 0x46;
-    const isShebang = buffer[0] === 0x23 && buffer[1] === 0x21;
+    if (bytesRead >= 2) {
+      const isPE = buffer[0] === 0x4D && buffer[1] === 0x5A; // MZ
+      const isELF = bytesRead >= 4 && buffer[0] === 0x7F && buffer[1] === 0x45 && buffer[2] === 0x4C && buffer[3] === 0x46;
+      const isShebang = buffer[0] === 0x23 && buffer[1] === 0x21;
 
-    if (isPE || isELF || isShebang) {
-      return {
-        valid: false,
-        error: 'Обнаружен исполняемый файл или скрипт под видом проектной документации. Загрузка отклонена.'
-      };
-    }
-
-    const ext = path.extname(originalName).toLowerCase();
-    // 2. Проверка PDF
-    if (ext === '.pdf') {
-      const magic = buffer.subarray(0, 4).toString('ascii');
-      if (magic !== '%PDF') {
-        return { valid: false, error: 'Файл с расширением .pdf не содержит корректного заголовка документа PDF.' };
+      if (isPE || isELF || isShebang) {
+        return {
+          valid: false,
+          error: 'Обнаружен исполняемый файл или скрипт под видом проектной документации. Загрузка отклонена.'
+        };
       }
     }
 
-    // 3. Проверка PNG
+    const ext = path.extname(originalName).toLowerCase();
+
+    // 2. Проверка PDF (заголовок %PDF занимает минимум 4 байта)
+    if (ext === '.pdf') {
+      if (bytesRead < 4 || buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
+        return { valid: false, error: 'Файл с расширением .pdf поврежден или не содержит корректного заголовка %PDF.' };
+      }
+    }
+
+    // 3. Проверка PNG (сигнатура PNG занимает 8 байт: 89 50 4E 47 0D 0A 1A 0A)
     if (ext === '.png') {
-      if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4E || buffer[3] !== 0x47) {
+      if (bytesRead < 8 ||
+          buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4E || buffer[3] !== 0x47 ||
+          buffer[4] !== 0x0D || buffer[5] !== 0x0A || buffer[6] !== 0x1A || buffer[7] !== 0x0A) {
         return { valid: false, error: 'Файл с расширением .png поврежден или имеет неверный формат изображения.' };
       }
     }
 
-    // 4. Проверка JPG
+    // 4. Проверка JPG/JPEG (сигнатура JPEG занимает минимум 3 байта: FF D8 FF)
     if (ext === '.jpg' || ext === '.jpeg') {
-      if (buffer[0] !== 0xFF || buffer[1] !== 0xD8 || buffer[2] !== 0xFF) {
+      if (bytesRead < 3 || buffer[0] !== 0xFF || buffer[1] !== 0xD8 || buffer[2] !== 0xFF) {
         return { valid: false, error: 'Файл с расширением .jpg/.jpeg поврежден или имеет неверный формат изображения.' };
       }
     }
@@ -563,18 +569,21 @@ app.get('/api/health', (req, res) => {
   }
 
   const statusCode = storageOk ? 200 : 503;
+  const isTest = process.env.NODE_ENV === 'test';
   res.status(statusCode).json({
     status: storageOk ? 'ok' : 'degraded',
     service: 'ООО «ФЕДСТРОЙ» API',
     storage: {
       ok: storageOk,
-      ...(storageError ? { error: storageError } : {})
+      ...(isTest && storageError ? { error: storageError } : {})
     },
-    notifications: {
-      telegramConfigured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-      emailRecipient: EMAIL_TO,
-      smtpConfigured: !!(SMTP_USER && SMTP_PASS)
-    },
+    ...(isTest ? {
+      notifications: {
+        telegramConfigured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+        emailRecipient: EMAIL_TO,
+        smtpConfigured: !!(SMTP_USER && SMTP_PASS)
+      }
+    } : {}),
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString()
   });
@@ -655,7 +664,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
     const randomHex = crypto.randomBytes(4).toString('hex');
     const leadId = `ФС-${dateStr}-${randomHex}`;
 
-    const newLead = {
+    const leadRecord = {
       leadId,
       name: (name || '').trim(),
       phone: (phone || '').trim(),
@@ -668,26 +677,41 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       file: attachedFile ? {
         originalName: Buffer.from(attachedFile.originalname, 'latin1').toString('utf8'),
         filename: attachedFile.filename,
-        size: attachedFile.size,
-        path: attachedFile.path
+        size: attachedFile.size
       } : null
     };
 
-    saveLead(newLead);
+    saveLead(leadRecord);
+
+    const fileAttachment = attachedFile ? {
+      originalName: Buffer.from(attachedFile.originalname, 'latin1').toString('utf8'),
+      filename: attachedFile.filename,
+      size: attachedFile.size,
+      path: attachedFile.path
+    } : null;
 
     // Параллельная отправка уведомлений: Telegram + Email
     const [telegramResult, emailResult] = await Promise.all([
-      sendToTelegram(newLead, newLead.file),
-      sendToEmail(newLead, newLead.file)
+      sendToTelegram(leadRecord, fileAttachment),
+      sendToEmail(leadRecord, fileAttachment)
     ]);
 
-    return res.status(200).json({
+    if (!telegramResult?.sent) console.warn('[lead:notify:telegram:warn]', telegramResult?.error || telegramResult?.reason);
+    if (!emailResult?.sent) console.warn('[lead:notify:email:warn]', emailResult?.error || emailResult?.reason);
+
+    const responsePayload = {
       success: true,
       leadId,
-      telegram: telegramResult,
-      email: emailResult,
       message: 'Заявка зарегистрирована. Мы свяжемся с вами в рабочее время.'
-    });
+    };
+
+    // В тестах передаем статусы уведомлений для валидации интеграции
+    if (process.env.NODE_ENV === 'test') {
+      responsePayload.telegram = telegramResult;
+      responsePayload.email = emailResult;
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (err) {
     console.error('[lead:process:error]', err);
     return res.status(500).json({
@@ -704,7 +728,37 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
   }
 });
 
-app.use(express.static(__dirname));
+// Белый список общедоступных файлов в корне проекта
+const ALLOWED_ROOT_FILES = new Set([
+  'index.html',
+  'app.js',
+  'privacy.html',
+  'consent.html',
+  'requisites.html',
+  'robots.txt',
+  'favicon.ico'
+]);
+
+// Безопасная раздача статики: строго разрешенные каталоги и файлы
+app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use('/js', express.static(path.join(__dirname, 'js')));
+
+app.get('/', (req, res) => {
+  res.sendFile('index.html', { root: __dirname });
+});
+
+app.get('/:file', (req, res, next) => {
+  const file = req.params.file;
+  if (ALLOWED_ROOT_FILES.has(file)) {
+    return res.sendFile(file, { root: __dirname });
+  }
+  next();
+});
+
+// Защита от прямого скачивания закрытых файлов и каталогов проекта
+app.use((req, res) => {
+  res.status(404).send('Not Found');
+});
 
 if (require.main === module) {
   app.listen(PORT, () => {

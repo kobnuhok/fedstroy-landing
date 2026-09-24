@@ -4,8 +4,11 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DATA_FILE = path.join(ROOT_DIR, 'data', 'leads.json');
-const UPLOADS_DIR = path.join(ROOT_DIR, 'uploads');
+const TEST_TMP_DIR = path.join(__dirname, '.tmp');
+const TEST_DATA_DIR = path.join(TEST_TMP_DIR, 'data');
+const TEST_UPLOADS_DIR = path.join(TEST_TMP_DIR, 'uploads');
+const DATA_FILE = path.join(TEST_DATA_DIR, 'leads.json');
+const UPLOADS_DIR = TEST_UPLOADS_DIR;
 const TEST_PORT = 8991;
 const BASE_URL = `http://localhost:${TEST_PORT}`;
 
@@ -14,7 +17,14 @@ function startServer(port) {
     const proc = spawn('node', ['server.js'], {
       cwd: ROOT_DIR,
       stdio: 'pipe',
-      env: { ...process.env, PORT: String(port), NODE_ENV: 'test' }
+      env: {
+        ...process.env,
+        PORT: String(port),
+        NODE_ENV: 'test',
+        DATA_DIR: TEST_DATA_DIR,
+        UPLOADS_DIR: TEST_UPLOADS_DIR,
+        KEEP_UPLOADED_FILES: 'true'
+      }
     });
 
     proc.stdout.on('data', d => {
@@ -31,10 +41,12 @@ function startServer(port) {
 }
 
 function cleanTestData() {
-  if (fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]\n');
-  if (fs.existsSync(UPLOADS_DIR)) {
-    fs.readdirSync(UPLOADS_DIR).forEach(f => {
-      try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch (_) {}
+  if (!fs.existsSync(TEST_DATA_DIR)) fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
+  if (!fs.existsSync(TEST_UPLOADS_DIR)) fs.mkdirSync(TEST_UPLOADS_DIR, { recursive: true });
+  fs.writeFileSync(DATA_FILE, '[]\n');
+  if (fs.existsSync(TEST_UPLOADS_DIR)) {
+    fs.readdirSync(TEST_UPLOADS_DIR).forEach(f => {
+      try { fs.unlinkSync(path.join(TEST_UPLOADS_DIR, f)); } catch (_) {}
     });
   }
 }
@@ -168,6 +180,22 @@ async function runAllTests() {
       }
     });
 
+    await testCase('2.3. Безопасность: 1-байтный .pdf файл отклоняется как невалидный PDF', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест 1-байт PDF');
+      fd.append('phone', '+7 (916) 555-66-77');
+      fd.append('agreement', 'on');
+      const badPdf = new Blob([Buffer.from('%')], { type: 'application/pdf' });
+      fd.append('attachment', badPdf, 'tiny.pdf');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 400) throw new Error(`Ожидался 400, получен ${res.status}`);
+      const json = await res.json();
+      if (!json.error || !json.error.toLowerCase().includes('pdf')) {
+        throw new Error(`Ожидалось сообщение о PDF: ${json.error}`);
+      }
+    });
+
     // -------------------------------------------------------------
     // БЛОК 3: Повторная отправка и защита от перезаписи файлов
     // -------------------------------------------------------------
@@ -194,8 +222,10 @@ async function runAllTests() {
       if (lead1.file.filename === lead2.file.filename) {
         throw new Error('Коллизия имени сохраненного файла в uploads/');
       }
-      if (!fs.existsSync(lead1.file.path) || !fs.existsSync(lead2.file.path)) {
-        throw new Error('Один из файлов не найден на диске');
+      const path1 = path.join(UPLOADS_DIR, lead1.file.filename);
+      const path2 = path.join(UPLOADS_DIR, lead2.file.filename);
+      if (!fs.existsSync(path1) || !fs.existsSync(path2)) {
+        throw new Error('Один из файлов не найден на диске в UPLOADS_DIR');
       }
     });
 
@@ -318,9 +348,31 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.5. Защита от утечки данных: запрет прямого доступа к data/, uploads/ и служебным файлам', async () => {
+      const endpoints = [
+        '/data/leads.json',
+        '/uploads/',
+        '/server.js',
+        '/package.json',
+        '/package-lock.json',
+        '/ecosystem.config.js',
+        '/.env'
+      ];
+
+      for (const ep of endpoints) {
+        const res = await fetch(`${BASE_URL}${ep}`);
+        if (res.status !== 404) {
+          throw new Error(`Утечка данных! ${ep} вернул HTTP ${res.status}, ожидался 404 Not Found`);
+        }
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();
+    if (fs.existsSync(TEST_TMP_DIR)) {
+      try { fs.rmSync(TEST_TMP_DIR, { recursive: true, force: true }); } catch (_) {}
+    }
   }
 
   console.log(`\n=== Итого: ${passed} пройдено, ${failed} провалено ===\n`);
