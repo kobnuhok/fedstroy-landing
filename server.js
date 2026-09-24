@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 8080;
 const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/kobnuhok\.github\.io$/,
   /^https:\/\/(www\.)?ooofedstroy\.ru$/,
-  /^https:\/\/([a-zA-Z0-9-]+\.)?vercel\.app$/,
+  /^https:\/\/fedstroy-landing(-[a-zA-Z0-9-]+)?\.vercel\.app$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 ];
 
@@ -32,6 +32,40 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Встроенный rate-limiter: защита от спама и DoS-атак на /api/lead (макс. 15 запросов в минуту с 1 IP)
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 15;
+
+function leadRateLimiter(req, res, next) {
+  // В тестах не ограничиваем скорость
+  if (process.env.NODE_ENV === 'test') return next();
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const timestamps = (rateLimitMap.get(ip) || []).filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
+
+  if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return res.status(429).json({
+      success: false,
+      error: 'Слишком много запросов. Пожалуйста, подождите минуту перед повторной отправкой или свяжитесь с нами по телефону.'
+    });
+  }
+
+  timestamps.push(now);
+  rateLimitMap.set(ip, timestamps);
+
+  if (rateLimitMap.size > 1000) {
+    for (const [k, v] of rateLimitMap.entries()) {
+      if (v.every(ts => now - ts >= RATE_LIMIT_WINDOW_MS)) {
+        rateLimitMap.delete(k);
+      }
+    }
+  }
+
+  next();
+}
 
 const isVercel = !!process.env.VERCEL;
 const UPLOADS_DIR = isVercel ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
@@ -97,25 +131,23 @@ function validateFileContent(filePath, originalName) {
   }
 }
 
-// Атомарное сохранение заявки в leads.json
+// Атомарное сохранение заявки в leads.json с защитой от повреждения данных
 function saveLead(newLead) {
-  try {
-    let leads = [];
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-      if (content) {
-        // Если файл повреждён — не перезаписываем данные
-        leads = JSON.parse(content);
-      }
+  let leads = [];
+  if (fs.existsSync(DATA_FILE)) {
+    const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+    if (content) {
+      // Если файл повреждён — выбрасываем исключение, предотвращая потерю или порчу данных
+      leads = JSON.parse(content);
     }
-
-    leads.unshift(newLead);
-    const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
-    fs.renameSync(tempFile, DATA_FILE);
-  } catch (err) {
-    console.warn('[fs:saveLead:warn]', err.message);
   }
+
+  leads.unshift(newLead);
+  const randomSuffix = crypto.randomBytes(4).toString('hex');
+  const tempFile = `${DATA_FILE}.tmp.${Date.now()}_${randomSuffix}`;
+  fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
+  fs.renameSync(tempFile, DATA_FILE);
+  return true;
 }
 
 // Настройка хранилища Multer с защитой от коллизий имен файлов
@@ -381,16 +413,11 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     service: 'ООО «ФЕДСТРОЙ» API',
     uptime: Math.round(process.uptime()),
-    timestamp: new Date().toISOString(),
-    telegram: {
-      hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
-      tokenLength: process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.length : 0,
-      chatId: process.env.TELEGRAM_CHAT_ID ? String(process.env.TELEGRAM_CHAT_ID) : null
-    }
+    timestamp: new Date().toISOString()
   });
 });
 
-app.post('/api/lead', (req, res, next) => {
+app.post('/api/lead', leadRateLimiter, (req, res, next) => {
   upload.single('attachment')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -414,6 +441,9 @@ app.post('/api/lead', (req, res, next) => {
     const isValidPhone = (phoneClean.length === 11 && (phoneClean.startsWith('7') || phoneClean.startsWith('8'))) ||
                          (phoneClean.length === 10 && phoneClean.startsWith('9'));
     if (!isValidPhone) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
       return res.status(400).json({
         success: false,
         error: 'Пожалуйста, укажите корректный контактный номер телефона РФ (10–11 цифр).'
@@ -478,6 +508,9 @@ app.post('/api/lead', (req, res, next) => {
       message: 'Заявка зарегистрирована. Инженер ПТО получит уведомление.'
     });
   } catch (err) {
+    if (attachedFile?.path) {
+      try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+    }
     console.error('[lead:process:error]', err);
     return res.status(500).json({
       success: false,
