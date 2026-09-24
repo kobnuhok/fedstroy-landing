@@ -50,12 +50,12 @@ mkdir -p "${UPLOADS_MIRROR}"
 chmod 700 "${UPLOADS_MIRROR}"
 
 if [[ -d "${UPLOADS_DIR}" && -n "$(ls -A "${UPLOADS_DIR}" 2>/dev/null)" ]]; then
-    # Синхронизация зеркала
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete "${UPLOADS_DIR}/" "${UPLOADS_MIRROR}/"
-    else
-        cp -ru "${UPLOADS_DIR}/"* "${UPLOADS_MIRROR}/" 2>/dev/null || true
+    # Синхронизация зеркала требует rsync для гарантии точной очистки удаленных файлов (--delete)
+    if ! command -v rsync >/dev/null 2>&1; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ОШИБКА: для корректного зеркалирования вложений требуется утилита rsync. Установите: apt-get install -y rsync" >&2
+        exit 1
     fi
+    rsync -a --delete "${UPLOADS_DIR}/" "${UPLOADS_MIRROR}/"
 
     DOW=$(date +%u)
     if [[ "${DOW}" -eq 7 ]]; then

@@ -499,6 +499,53 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.6. Детализация Telegram-доставки: флаги messageSent, documentSent и fullyDelivered', async () => {
+      // 1. С файлом: messageSent === true, documentSent === true, fullyDelivered === true
+      const fdWithFile = new FormData();
+      fdWithFile.append('name', 'Тест Telegram статус с файлом');
+      fdWithFile.append('phone', '+7 (916) 888-00-11');
+      fdWithFile.append('agreement', 'on');
+      const b = new Blob(['sample dwg content'], { type: 'application/octet-stream' });
+      fdWithFile.append('attachment', b, 'telegram_test.dwg');
+
+      const resWithFile = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fdWithFile });
+      if (resWithFile.status !== 200) throw new Error(`HTTP ${resWithFile.status}`);
+      const jsonWithFile = await resWithFile.json();
+      if (!jsonWithFile.telegram) throw new Error('Отсутствует объект telegram в ответе');
+      if (jsonWithFile.telegram.messageSent !== true) throw new Error('Ожидался messageSent === true');
+      if (jsonWithFile.telegram.documentSent !== true) throw new Error('Ожидался documentSent === true');
+      if (jsonWithFile.telegram.fullyDelivered !== true) throw new Error('Ожидался fullyDelivered === true');
+
+      // 2. Без файла: messageSent === true, documentSent === null, fullyDelivered === true
+      const fdNoFile = new FormData();
+      fdNoFile.append('name', 'Тест Telegram статус без файла');
+      fdNoFile.append('phone', '+7 (916) 888-00-22');
+      fdNoFile.append('agreement', 'on');
+
+      const resNoFile = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fdNoFile });
+      if (resNoFile.status !== 200) throw new Error(`HTTP ${resNoFile.status}`);
+      const jsonNoFile = await resNoFile.json();
+      if (jsonNoFile.telegram.messageSent !== true) throw new Error('Ожидался messageSent === true');
+      if (jsonNoFile.telegram.documentSent !== null) throw new Error(`Ожидался documentSent === null, получено: ${jsonNoFile.telegram.documentSent}`);
+      if (jsonNoFile.telegram.fullyDelivered !== true) throw new Error('Ожидался fullyDelivered === true');
+    });
+
+    await testCase('6.7. Персистентность статусов уведомлений: в leads.json сохраняется объект notifications со статусами', async () => {
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const leadWithNotifications = leads.find(l => l.name === 'Тест Telegram статус с файлом');
+      if (!leadWithNotifications) throw new Error('Заявка не найдена в leads.json');
+      if (!leadWithNotifications.notifications) throw new Error('В заявке отсутствует объект notifications');
+      if (leadWithNotifications.notifications.telegram !== 'sent') {
+        throw new Error(`Ожидался notifications.telegram === 'sent', получено: ${leadWithNotifications.notifications.telegram}`);
+      }
+      if (leadWithNotifications.notifications.email !== 'sent') {
+        throw new Error(`Ожидался notifications.email === 'sent', получено: ${leadWithNotifications.notifications.email}`);
+      }
+      if (!leadWithNotifications.notifications.updatedAt) {
+        throw new Error('Отсутствует notifications.updatedAt');
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();
