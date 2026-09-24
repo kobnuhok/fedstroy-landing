@@ -562,6 +562,11 @@ app.get('/api/health', (req, res) => {
     if (!fs.existsSync(DATA_FILE)) {
       storageOk = false;
       storageError = 'leads.json missing';
+    } else {
+      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+      if (content) {
+        JSON.parse(content);
+      }
     }
   } catch (err) {
     storageOk = false;
@@ -618,6 +623,18 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       return res.status(400).json({
         success: false,
         error: 'Необходимо подтвердить согласие на обработку персональных данных.'
+      });
+    }
+
+    // Валидация обязательного имени контактного лица (защита от пустых заявок)
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Пожалуйста, укажите имя контактного лица.'
       });
     }
 

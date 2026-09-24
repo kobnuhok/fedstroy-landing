@@ -14,6 +14,14 @@ function makeTempDwg() {
   return tmpPath;
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const style = document.createElement('style');
+    style.textContent = '* { scroll-behavior: auto !important; }';
+    (document.head || document.documentElement).appendChild(style);
+  });
+});
+
 // ============================================================
 // ДЕСКТОП ТЕСТЫ (только для desktop viewport)
 // ============================================================
@@ -109,10 +117,9 @@ test('desktop: квиз — прохождение всех шагов и фор
 
   // Проходим шаги 1, 2, 3, 4
   for (let step = 1; step <= 4; step++) {
-    await nextBtn.scrollIntoViewIfNeeded();
     await expect(nextBtn).toBeVisible();
     await nextBtn.click();
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(100);
   }
 
   // На 5-м шаге: результат квиза виден

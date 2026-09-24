@@ -298,6 +298,20 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.1b. Валидация: пустое имя контактного лица -> 400', async () => {
+      const fd = new FormData();
+      fd.append('name', '   '); // пустое имя из пробелов
+      fd.append('phone', '+7 (916) 400-50-60');
+      fd.append('agreement', 'on');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 400) throw new Error(`Ожидался 400, получен ${res.status}`);
+      const json = await res.json();
+      if (!json.error || !json.error.includes('имя')) {
+        throw new Error(`Ожидалась ошибка отсутствия имени: ${json.error}`);
+      }
+    });
+
     await testCase('6.2. Проверка состояния файлового хранилища в /api/health', async () => {
       const res = await fetch(`${BASE_URL}/api/health`);
       if (res.status !== 200) throw new Error(`Ожидался 200, получен ${res.status}`);
@@ -322,6 +336,23 @@ async function runAllTests() {
         }
       } finally {
         // Восстанавливаем leads.json
+        fs.writeFileSync(DATA_FILE, '[]\n');
+      }
+    });
+
+    await testCase('6.3b. Проверка /api/health при поврежденном JSON в leads.json -> 503 degraded', async () => {
+      // Записываем битый JSON в leads.json
+      fs.writeFileSync(DATA_FILE, 'НЕВАЛИДНЫЙ_JSON_{{{');
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/health`);
+        if (res.status !== 503) throw new Error(`Ожидался статус 503 при битом leads.json, получен ${res.status}`);
+        const json = await res.json();
+        if (json.status !== 'degraded') throw new Error(`Ожидался status 'degraded', получен '${json.status}'`);
+        if (!json.storage || json.storage.ok !== false) {
+          throw new Error(`Ожидался storage.ok === false: ${JSON.stringify(json.storage)}`);
+        }
+      } finally {
         fs.writeFileSync(DATA_FILE, '[]\n');
       }
     });
@@ -352,6 +383,10 @@ async function runAllTests() {
       const endpoints = [
         '/data/leads.json',
         '/uploads/',
+        '/src/template.html',
+        '/blocks/header.html',
+        '/deploy/nginx.conf',
+        '/scripts/smoke-leak-test.js',
         '/server.js',
         '/package.json',
         '/package-lock.json',

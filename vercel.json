@@ -12,8 +12,8 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
-    { "src": "/(data|uploads)(/.*)?", "status": 404 },
-    { "src": "/(server|ecosystem\\.config|build|package|package-lock|README)\\.(js|json|md)", "status": 404 },
+    { "src": "/(data|uploads|src|blocks|test|deploy|scripts|node_modules)(/.*)?", "status": 404 },
+    { "src": "/(\\..*|server|ecosystem\\.config|build|package|package-lock|README)(\\..*)?", "status": 404 },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
