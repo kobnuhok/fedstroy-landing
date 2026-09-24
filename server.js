@@ -404,6 +404,10 @@ app.post('/api/lead', (req, res, next) => {
 
 app.use(express.static(__dirname));
 
-app.listen(PORT, () => {
-  console.log(`[ООО «ФЕДСТРОЙ»] Сервер запущен: http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`[ООО «ФЕДСТРОЙ»] Сервер запущен: http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

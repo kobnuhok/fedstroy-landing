@@ -5,7 +5,7 @@ export const CONFIG = {
   // Если сайт открыт с локального сервера или своего домена — используется относительный путь /api/lead.
   // При деплое на сторонний бэкенд укажите полный URL (например, https://api.ooofedstroy.ru/api/lead).
   API_URL: window.location.origin.includes('github.io')
-    ? 'https://ooofedstroy-api.onrender.com/api/lead' // URL продакшн-сервера или fallback
+    ? 'https://fedstroy-landing.vercel.app/api/lead' // URL бэкенда Vercel (работает в РФ без VPN)
     : '/api/lead',
 
   // Прямые каналы оперативной связи
