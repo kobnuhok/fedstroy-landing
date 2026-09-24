@@ -8,11 +8,12 @@
     { "src": "privacy.html", "use": "@vercel/static" },
     { "src": "requisites.html", "use": "@vercel/static" },
     { "src": "css/**", "use": "@vercel/static" },
-    { "src": "js/**", "use": "@vercel/static" },
-    { "src": "blocks/**", "use": "@vercel/static" }
+    { "src": "js/**", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
+    { "src": "/(data|uploads)(/.*)?", "status": 404 },
+    { "src": "/(server|ecosystem\\.config|build|package|package-lock|README)\\.(js|json|md)", "status": 404 },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
