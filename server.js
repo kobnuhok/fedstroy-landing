@@ -23,6 +23,13 @@ const ALLOWED_ORIGIN_PATTERNS = [
 
 const isVercel = !!process.env.VERCEL;
 
+let vercelWaitUntil = null;
+try {
+  vercelWaitUntil = require('@vercel/functions').waitUntil;
+} catch (_) {}
+
+const MAX_NOTIFICATION_ATTEMPTS = 3;
+
 app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, cb) => {
@@ -274,9 +281,27 @@ function updateLeadNotificationStatus(leadId, patch) {
     if (!Array.isArray(leads)) return;
     const lead = leads.find(l => l.leadId === leadId);
     if (lead) {
+      const prevNotif = lead.notifications || {};
+      const prevAttempts = prevNotif.attempts || {
+        telegram: (prevNotif.telegram && prevNotif.telegram !== 'pending') ? 1 : 0,
+        email: (prevNotif.email && prevNotif.email !== 'pending') ? 1 : 0
+      };
+
+      const newAttempts = {
+        telegram: patch.incTelegramAttempt ? (prevAttempts.telegram + 1) : (patch.telegramAttempts ?? prevAttempts.telegram),
+        email: patch.incEmailAttempt ? (prevAttempts.email + 1) : (patch.emailAttempts ?? prevAttempts.email)
+      };
+
+      const cleanPatch = { ...patch };
+      delete cleanPatch.incTelegramAttempt;
+      delete cleanPatch.incEmailAttempt;
+      delete cleanPatch.telegramAttempts;
+      delete cleanPatch.emailAttempts;
+
       lead.notifications = {
-        ...(lead.notifications || {}),
-        ...patch,
+        ...prevNotif,
+        ...cleanPatch,
+        attempts: newAttempts,
         updatedAt: new Date().toISOString()
       };
       const randomSuffix = crypto.randomBytes(4).toString('hex');
@@ -446,14 +471,21 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
 
 // Отправка уведомления в Telegram (при наличии токена и ID чата в .env)
 async function sendToTelegram(lead, file) {
+  const fileExpected = !!lead.file;
+  const hasPhysicalFile = !!(file && file.path && fs.existsSync(file.path));
+  const fileMissing = fileExpected && !hasPhysicalFile;
+
   if (process.env.NODE_ENV === 'test') {
-    const hasFile = !!(file && (file.path || file.filename));
+    const docSent = fileExpected ? hasPhysicalFile : null;
+    const isFullyDelivered = fileExpected ? hasPhysicalFile : true;
     return {
       sent: true,
       mocked: true,
       messageSent: true,
-      documentSent: hasFile ? true : null,
-      fullyDelivered: true
+      documentSent: docSent,
+      fullyDelivered: isFullyDelivered,
+      fileMissing: fileMissing,
+      ...(fileMissing ? { documentError: 'Вложение ожидалось, но файл отсутствует на сервере' } : {})
     };
   }
 
@@ -462,7 +494,14 @@ async function sendToTelegram(lead, file) {
 
   if (!token || !chatId) {
     console.warn('[telegram:skip] Токен или Chat ID не заданы в process.env — отправка в Telegram пропущена');
-    return { sent: false, messageSent: false, documentSent: false, fullyDelivered: false, reason: 'Токен или Chat ID не заданы в переменных окружения' };
+    return {
+      sent: false,
+      messageSent: false,
+      documentSent: fileExpected ? false : null,
+      fullyDelivered: false,
+      fileMissing,
+      reason: 'Токен или Chat ID не заданы в переменных окружения'
+    };
   }
 
   console.log(`[telegram:start] Отправка уведомления для заявки ${lead.leadId} в чат ${chatId}...`);
@@ -479,7 +518,8 @@ async function sendToTelegram(lead, file) {
       lead.building ? `<b>🏢 Тип объекта:</b> ${escapeHtml(lead.building)}` : null,
       lead.source ? `<b>📌 Источник:</b> ${escapeHtml(lead.source)}` : null,
       lead.comment ? `<b>💬 Комментарий:</b> ${escapeHtml(lead.comment)}` : null,
-      file ? `<b>📎 Прикреплен файл ТЗ:</b> ${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : null,
+      lead.file ? `<b>📎 Прикреплен файл ТЗ:</b> ${escapeHtml(lead.file.originalName || file?.originalName || 'Файл')} (${(((lead.file.size || file?.size || 0)) / (1024 * 1024)).toFixed(2)} МБ)` : null,
+      fileMissing ? `⚠️ <b>Внимание:</b> файл вложения отсутствует на диске сервера (удален или не сохранен)` : null,
       `━━━━━━━━━━━━━━━━━━━━`,
       `⏰ ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)`
     ].filter(Boolean).join('\n');
@@ -518,7 +558,14 @@ async function sendToTelegram(lead, file) {
 
     if (!msgRes.ok || !msgRes.data?.ok) {
       console.error('[telegram:notify:error] Ошибка Telegram API:', msgRes.data?.description);
-      return { sent: false, error: msgRes.data?.description || 'Ошибка Telegram API' };
+      return {
+        sent: false,
+        messageSent: false,
+        documentSent: fileExpected ? false : null,
+        fullyDelivered: false,
+        fileMissing,
+        error: msgRes.data?.description || 'Ошибка Telegram API'
+      };
     }
 
     const messageId = msgRes.data.result?.message_id;
@@ -526,7 +573,10 @@ async function sendToTelegram(lead, file) {
 
     let docSent = false;
     let docError = null;
-    if (file && fs.existsSync(file.path)) {
+    if (fileMissing) {
+      docError = 'Вложение ожидалось, но файл отсутствует на диске сервера';
+      console.warn(`[telegram:document:warn] Заявка ${lead.leadId}: файл ${lead.file?.originalName} отсутствует на диске`);
+    } else if (hasPhysicalFile) {
       try {
         const fileData = fs.readFileSync(file.path);
         const boundary = '----WebKitFormBoundary' + Math.random().toString(36).slice(2);
@@ -561,9 +611,8 @@ async function sendToTelegram(lead, file) {
       }
     }
 
-    const hasFile = !!(file && fs.existsSync(file.path));
-    const isFullyDelivered = !hasFile || docSent;
-    if (hasFile && !docSent) {
+    const isFullyDelivered = fileExpected ? docSent : true;
+    if (fileExpected && !docSent) {
       console.warn(`[telegram:document:warn] Заявка ${lead.leadId}: текстовое сообщение отправлено (ID: ${messageId}), но вложение не доставлено: ${docError}`);
     }
 
@@ -571,33 +620,46 @@ async function sendToTelegram(lead, file) {
       sent: true,
       messageSent: true,
       messageId,
-      documentSent: hasFile ? docSent : null,
+      documentSent: fileExpected ? docSent : null,
       documentError: docError,
+      fileMissing,
       fullyDelivered: isFullyDelivered
     };
   } catch (err) {
     console.error('[telegram:notify:error] Сетевая ошибка при отправке в Telegram:', err.message);
-    return { sent: false, messageSent: false, documentSent: false, fullyDelivered: false, error: err.message };
+    return {
+      sent: false,
+      messageSent: false,
+      documentSent: fileExpected ? false : null,
+      fullyDelivered: false,
+      fileMissing,
+      error: err.message
+    };
   }
 }
 
 // Отправка дублирующего уведомления на корпоративную почту через SMTP (nodemailer)
 async function sendToEmail(lead, file) {
+  const fileExpected = !!lead.file;
+  const hasPhysicalFile = !!(file && file.path && fs.existsSync(file.path));
+  const fileMissing = fileExpected && !hasPhysicalFile;
+
   if (process.env.NODE_ENV === 'test') {
-    const isAttached = !!(file && file.size <= MAX_EMAIL_ATTACHMENT_SIZE);
+    const isAttached = hasPhysicalFile && file.size <= MAX_EMAIL_ATTACHMENT_SIZE;
     return {
       sent: true,
       mocked: true,
       recipient: EMAIL_TO,
       attached: isAttached,
-      oversized: !!(file && file.size > MAX_EMAIL_ATTACHMENT_SIZE)
+      oversized: !!(hasPhysicalFile && file.size > MAX_EMAIL_ATTACHMENT_SIZE),
+      fileMissing
     };
   }
 
   const transporter = getMailTransporter();
   if (!transporter) {
     console.log(`[email:skip] SMTP не настроен (SMTP_USER/SMTP_PASS не заданы в .env). Дублирование на ${EMAIL_TO} пропущено, заявка сохранена локально.`);
-    return { sent: false, recipient: EMAIL_TO, reason: 'SMTP не настроен (задайте SMTP_USER и SMTP_PASS в .env)' };
+    return { sent: false, recipient: EMAIL_TO, fileMissing, reason: 'SMTP не настроен (задайте SMTP_USER и SMTP_PASS в .env)' };
   }
 
   console.log(`[email:start] Отправка дубликата заявки ${lead.leadId} на почту ${EMAIL_TO}...`);
@@ -612,7 +674,7 @@ async function sendToEmail(lead, file) {
     const safeSource = escapeHtml(lead.source) || 'Форма на сайте';
     const safeComment = escapeHtml(lead.comment) || '—';
 
-    const hasAttachment = !!(file && fs.existsSync(file.path));
+    const hasAttachment = hasPhysicalFile;
     const isOversizedForEmail = hasAttachment && file.size > MAX_EMAIL_ATTACHMENT_SIZE;
 
     const htmlBody = `
@@ -652,17 +714,21 @@ async function sendToEmail(lead, file) {
                 <td style="padding: 10px 0; color: #64748b; vertical-align: top;"><strong>Комментарий:</strong></td>
                 <td style="padding: 10px 0; color: #0f172a; white-space: pre-wrap;">${safeComment}</td>
               </tr>
-              ${file ? `
+              ${lead.file ? `
               <tr style="border-bottom: 1px solid #f1f5f9;">
                 <td style="padding: 10px 0; color: #64748b; vertical-align: top;"><strong>Прикреплен файл:</strong></td>
                 <td style="padding: 10px 0; color: #0f172a;">
-                  📎 ${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)
-                  ${isOversizedForEmail ? `
+                  📎 ${escapeHtml(lead.file.originalName || file?.originalName || 'Файл')} (${(((lead.file.size || file?.size || 0)) / (1024 * 1024)).toFixed(2)} МБ)
+                  ${fileMissing ? `
+                  <div style="margin-top: 6px; padding: 8px 12px; background: #fee2e2; border: 1px solid #fecaca; border-radius: 6px; font-size: 13px; color: #991b1b; line-height: 1.4;">
+                    ⚠️ <strong>Внимание:</strong> файл проекта отсутствует на диске сервера (удален политикой очистки или не сохранен).
+                  </div>
+                  ` : (isOversizedForEmail ? `
                   <div style="margin-top: 6px; padding: 8px 12px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; font-size: 13px; color: #92400e; line-height: 1.4;">
                     ⚠️ <strong>Вложение не прикреплено к письму:</strong> размер файла превышает лимит почтового шлюза (20 МБ) с учетом MIME-кодирования (жесткий лимит Яндекс Почты — 30 МБ).<br>
                     📁 <strong>Файл сохранен на сервере в каталоге заявок (uploads/) и направляется в Telegram-чат ПТО отдельным каналом.</strong>
                   </div>
-                  ` : ''}
+                  ` : '')}
                 </td>
               </tr>` : ''}
             </tbody>
@@ -688,16 +754,24 @@ async function sendToEmail(lead, file) {
         filename: file.originalName || file.filename || 'attachment.pdf',
         content: fs.readFileSync(file.path)
       }];
+    } else if (fileMissing) {
+      console.warn(`[email:attachment:missing] Файл ${lead.file?.originalName} отсутствует на диске. Отправка email без вложения.`);
     } else if (isOversizedForEmail) {
       console.log(`[email:attachment:notice] Файл ${file.originalName} (${(file.size / (1024 * 1024)).toFixed(2)} МБ) превышает лимит 20 МБ. Отправка email без вложения.`);
     }
 
     const info = await transporter.sendMail(mailOptions);
     console.log(`[email:notify:success] Заявка ${lead.leadId} успешно доставлена на почту ${EMAIL_TO} (ID: ${info.messageId})`);
-    return { sent: true, recipient: EMAIL_TO, messageId: info.messageId, attached: !isOversizedForEmail };
+    return {
+      sent: true,
+      recipient: EMAIL_TO,
+      messageId: info.messageId,
+      attached: hasAttachment && !isOversizedForEmail,
+      fileMissing
+    };
   } catch (err) {
     console.error('[email:notify:error] Ошибка отправки на почту:', err.message);
-    return { sent: false, recipient: EMAIL_TO, error: err.message };
+    return { sent: false, recipient: EMAIL_TO, fileMissing, error: err.message };
   }
 }
 
@@ -726,6 +800,13 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+if (process.env.NODE_ENV === 'test') {
+  app.post('/api/internal/retry', async (req, res) => {
+    await retryPendingNotifications(true);
+    res.json({ success: true });
+  });
+}
 
 app.post('/api/lead', leadRateLimiter, (req, res, next) => {
   upload.single('attachment')(req, res, (err) => {
@@ -888,6 +969,10 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       notifications: {
         telegram: 'pending',
         email: 'pending',
+        attempts: {
+          telegram: 0,
+          email: 0
+        },
         updatedAt: new Date().toISOString()
       },
       file: attachedFile ? {
@@ -912,7 +997,10 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       updateLeadNotificationStatus(leadRecord.leadId, {
         telegram: tgStatus,
         email: emStatus,
+        incTelegramAttempt: true,
+        incEmailAttempt: true,
         ...(tgRes?.documentError ? { telegramDocError: tgRes.documentError } : {}),
+        ...(tgRes?.fileMissing ? { fileMissing: true } : {}),
         ...(emRes?.error ? { emailError: emRes.error } : {})
       });
     };
@@ -935,7 +1023,8 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       return res.status(200).json(responsePayload);
     }
 
-    // 2. В serverless (Vercel): ожидаем с защитным таймаутом (10с).
+    // 2. В serverless (Vercel): регистрация background job через @vercel/functions waitUntil
+    // Либо защитный таймаут Promise.race (fallback).
     // Очистка файла строго привязана к завершению notifyPromise, исключая гонку с таймаутом.
     if (isVercel) {
       const notifyPromise = Promise.allSettled([
@@ -952,6 +1041,11 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
           } catch (_) {}
         }
       });
+
+      if (typeof vercelWaitUntil === 'function') {
+        vercelWaitUntil(notifyPromise);
+        return res.status(200).json(responsePayload);
+      }
 
       const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 10000));
       await Promise.race([notifyPromise, timeoutPromise]);
@@ -1045,9 +1139,23 @@ app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
+function shouldRetryTelegram(notif) {
+  if (!notif) return false;
+  const status = notif.telegram;
+  const attempts = notif.attempts?.telegram ?? (status === 'pending' ? 0 : 1);
+  return ['pending', 'failed', 'partial'].includes(status) && attempts < MAX_NOTIFICATION_ATTEMPTS;
+}
+
+function shouldRetryEmail(notif) {
+  if (!notif) return false;
+  const status = notif.email;
+  const attempts = notif.attempts?.email ?? (status === 'pending' ? 0 : 1);
+  return ['pending', 'failed'].includes(status) && attempts < MAX_NOTIFICATION_ATTEMPTS;
+}
+
 // Повторная отправка недоставленных уведомлений при старте сервера (защита от падений Node/PM2)
-async function retryPendingNotifications() {
-  if (process.env.NODE_ENV === 'test' || isVercel) return;
+async function retryPendingNotifications(force = false) {
+  if (!force && (process.env.NODE_ENV === 'test' && !process.env.TEST_ENABLE_STARTUP_RETRY) || (!force && isVercel)) return;
   if (!fs.existsSync(DATA_FILE)) return;
 
   try {
@@ -1056,34 +1164,57 @@ async function retryPendingNotifications() {
     const leads = JSON.parse(content);
     if (!Array.isArray(leads)) return;
 
-    const pendingLeads = leads.filter(l =>
-      l.notifications && (l.notifications.telegram === 'pending' || l.notifications.email === 'pending')
+    const retryableLeads = leads.filter(l =>
+      shouldRetryTelegram(l.notifications) || shouldRetryEmail(l.notifications)
     );
 
-    if (pendingLeads.length > 0) {
-      console.log(`[notify:recovery] Найдено ${pendingLeads.length} заявок с незавершенной доставкой. Запуск повторной отправки...`);
-      for (const lead of pendingLeads) {
+    if (retryableLeads.length > 0) {
+      console.log(`[notify:recovery] Найдено ${retryableLeads.length} заявок для повторной отправки (pending/failed/partial).`);
+      for (const lead of retryableLeads) {
+        const fileExpected = !!lead.file;
         let fileAttachment = null;
-        if (lead.file?.filename) {
-          const filePath = path.join(UPLOADS_DIR, lead.file.filename);
-          if (fs.existsSync(filePath)) {
+        let fileMissing = false;
+
+        if (fileExpected) {
+          const filename = lead.file.filename;
+          const filePath = filename ? path.join(UPLOADS_DIR, filename) : null;
+          if (filePath && fs.existsSync(filePath)) {
             fileAttachment = {
               originalName: lead.file.originalName,
               filename: lead.file.filename,
               size: lead.file.size,
               path: filePath
             };
+          } else {
+            fileMissing = true;
           }
         }
 
+        const doRetryTelegram = shouldRetryTelegram(lead.notifications);
+        const doRetryEmail = shouldRetryEmail(lead.notifications);
+
+        // Если Telegram уже в статусе 'partial' (текстовое сообщение ранее уже было доставлено),
+        // а файл физически отсутствует на сервере — повторно слать текст в чат не имеет смысла:
+        // фиксируем partial и отказ от повтора.
+        let skipTelegramSend = false;
+        if (doRetryTelegram && lead.notifications.telegram === 'partial' && fileMissing) {
+          skipTelegramSend = true;
+          updateLeadNotificationStatus(lead.leadId, {
+            telegram: 'partial',
+            telegramDocError: 'Вложение отсутствует на диске сервера, повтор отменен',
+            fileMissing: true,
+            incTelegramAttempt: true
+          });
+        }
+
         const tasks = [];
-        if (lead.notifications.telegram === 'pending') {
+        if (doRetryTelegram && !skipTelegramSend) {
           tasks.push(sendToTelegram(lead, fileAttachment));
         } else {
           tasks.push(Promise.resolve(null));
         }
 
-        if (lead.notifications.email === 'pending') {
+        if (doRetryEmail) {
           tasks.push(sendToEmail(lead, fileAttachment));
         } else {
           tasks.push(Promise.resolve(null));
@@ -1091,14 +1222,23 @@ async function retryPendingNotifications() {
 
         const [tgSettled, emSettled] = await Promise.allSettled(tasks);
         const patch = {};
+
         if (tgSettled.status === 'fulfilled' && tgSettled.value) {
-          patch.telegram = tgSettled.value.fullyDelivered ? 'sent' : (tgSettled.value.messageSent ? 'partial' : 'failed');
-          if (tgSettled.value.documentError) patch.telegramDocError = tgSettled.value.documentError;
+          const tgVal = tgSettled.value;
+          patch.telegram = tgVal.fullyDelivered ? 'sent' : (tgVal.messageSent ? 'partial' : 'failed');
+          patch.incTelegramAttempt = true;
+          if (tgVal.documentError) patch.telegramDocError = tgVal.documentError;
+          if (tgVal.fileMissing) patch.fileMissing = true;
         }
+
         if (emSettled.status === 'fulfilled' && emSettled.value) {
-          patch.email = emSettled.value.sent ? 'sent' : 'failed';
-          if (emSettled.value.error) patch.emailError = emSettled.value.error;
+          const emVal = emSettled.value;
+          patch.email = emVal.sent ? 'sent' : 'failed';
+          patch.incEmailAttempt = true;
+          if (emVal.error) patch.emailError = emVal.error;
+          if (fileMissing) patch.fileMissing = true;
         }
+
         if (Object.keys(patch).length > 0) {
           updateLeadNotificationStatus(lead.leadId, patch);
         }
@@ -1106,7 +1246,7 @@ async function retryPendingNotifications() {
       console.log(`[notify:recovery] Повторная отправка завершена.`);
     }
   } catch (err) {
-    console.error('[notify:recovery:error] Ошибка при проверке pending заявок:', err.message);
+    console.error('[notify:recovery:error] Ошибка при повторной отправке заявок:', err.message);
   }
 }
 
@@ -1116,5 +1256,10 @@ if (require.main === module) {
     retryPendingNotifications().catch(e => console.error('[notify:recovery:fatal]', e.message));
   });
 }
+
+app.retryPendingNotifications = retryPendingNotifications;
+app.shouldRetryTelegram = shouldRetryTelegram;
+app.shouldRetryEmail = shouldRetryEmail;
+app.MAX_NOTIFICATION_ATTEMPTS = MAX_NOTIFICATION_ATTEMPTS;
 
 module.exports = app;

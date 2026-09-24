@@ -12,7 +12,7 @@ const UPLOADS_DIR = TEST_UPLOADS_DIR;
 const TEST_PORT = 8991;
 const BASE_URL = `http://localhost:${TEST_PORT}`;
 
-function startServer(port) {
+function startServer(port, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const proc = spawn('node', ['server.js'], {
       cwd: ROOT_DIR,
@@ -23,7 +23,8 @@ function startServer(port) {
         NODE_ENV: 'test',
         DATA_DIR: TEST_DATA_DIR,
         UPLOADS_DIR: TEST_UPLOADS_DIR,
-        KEEP_UPLOADED_FILES: 'true'
+        KEEP_UPLOADED_FILES: 'true',
+        ...extraEnv
       }
     });
 
@@ -543,6 +544,166 @@ async function runAllTests() {
       }
       if (!leadWithNotifications.notifications.updatedAt) {
         throw new Error('Отсутствует notifications.updatedAt');
+      }
+    });
+
+    await testCase('6.8. Повторная отправка (retry): заявка со статусами Telegram partial и Email failed повторно обрабатывается и переходит в sent', async () => {
+      // 1. Создаем физический файл на диске
+      const testFilename = `retry_test_${Date.now()}.dwg`;
+      fs.writeFileSync(path.join(TEST_UPLOADS_DIR, testFilename), 'fake dwg for retry test');
+
+      // 2. Добавляем заявку со статусами partial и failed в leads.json
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const retryLeadId = `ФС-TEST-RETRY-${Date.now()}`;
+      leads.push({
+        leadId: retryLeadId,
+        name: 'Клиент Retry Partial Failed',
+        phone: '+7 (916) 111-22-33',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'partial',
+          email: 'failed',
+          attempts: { telegram: 1, email: 1 },
+          updatedAt: new Date().toISOString()
+        },
+        file: {
+          originalName: 'retry_file.dwg',
+          filename: testFilename,
+          size: 1024
+        }
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // 3. Запускаем retry
+      const retryRes = await fetch(`${BASE_URL}/api/internal/retry`, { method: 'POST' });
+      if (retryRes.status !== 200) throw new Error(`HTTP ${retryRes.status}`);
+
+      // 4. Проверяем leads.json: оба канала стали sent, attempts увеличились до 2
+      const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const updatedLead = updatedLeads.find(l => l.leadId === retryLeadId);
+      if (!updatedLead) throw new Error('Заявка не найдена в leads.json');
+      if (updatedLead.notifications.telegram !== 'sent') {
+        throw new Error(`Ожидался telegram === 'sent', получено: ${updatedLead.notifications.telegram}`);
+      }
+      if (updatedLead.notifications.email !== 'sent') {
+        throw new Error(`Ожидался email === 'sent', получено: ${updatedLead.notifications.email}`);
+      }
+      if (updatedLead.notifications.attempts?.telegram !== 2 || updatedLead.notifications.attempts?.email !== 2) {
+        throw new Error(`Ожидались attempts === 2: ${JSON.stringify(updatedLead.notifications.attempts)}`);
+      }
+    });
+
+    await testCase('6.9. Защита от ложного успеха при retry: при отсутствии файла на диске Telegram фиксируется как partial, а не sent', async () => {
+      // 1. Добавляем заявку, у которой lead.file указан, но физического файла НЕТ на диске
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const missingFileLeadId = `ФС-TEST-MISSING-${Date.now()}`;
+      leads.push({
+        leadId: missingFileLeadId,
+        name: 'Клиент Потерянный Файл',
+        phone: '+7 (916) 222-33-44',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        },
+        file: {
+          originalName: 'lost_drawing.dwg',
+          filename: 'non_existent_disk_file_12345.dwg',
+          size: 2048
+        }
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // 2. Запускаем retry
+      const retryRes = await fetch(`${BASE_URL}/api/internal/retry`, { method: 'POST' });
+      if (retryRes.status !== 200) throw new Error(`HTTP ${retryRes.status}`);
+
+      // 3. Проверяем leads.json: telegram должен быть partial (НЕ sent!), и зафиксирован fileMissing: true
+      const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const updatedLead = updatedLeads.find(l => l.leadId === missingFileLeadId);
+      if (!updatedLead) throw new Error('Заявка не найдена в leads.json');
+      if (updatedLead.notifications.telegram !== 'partial') {
+        throw new Error(`Ожидался telegram === 'partial' (так как файл отсутствует), получено: ${updatedLead.notifications.telegram}`);
+      }
+      if (updatedLead.notifications.fileMissing !== true) {
+        throw new Error('Ожидался флаг fileMissing === true');
+      }
+    });
+
+    await testCase('6.10. Лимит попыток: заявки с исчерпанным лимитом попыток (attempts >= 3) пропускаются и не зацикливают retry', async () => {
+      // 1. Добавляем заявку с исчерпанным лимитом попыток (3)
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const exhaustedLeadId = `ФС-TEST-EXHAUSTED-${Date.now()}`;
+      leads.push({
+        leadId: exhaustedLeadId,
+        name: 'Клиент Исчерпан Лимит',
+        phone: '+7 (916) 333-44-55',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'failed',
+          email: 'failed',
+          attempts: { telegram: 3, email: 3 },
+          updatedAt: new Date().toISOString()
+        },
+        file: null
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // 2. Запускаем retry
+      const retryRes = await fetch(`${BASE_URL}/api/internal/retry`, { method: 'POST' });
+      if (retryRes.status !== 200) throw new Error(`HTTP ${retryRes.status}`);
+
+      // 3. Проверяем leads.json: attempts не должны измениться (остаться 3), статус остался failed
+      const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const updatedLead = updatedLeads.find(l => l.leadId === exhaustedLeadId);
+      if (!updatedLead) throw new Error('Заявка не найдена в leads.json');
+      if (updatedLead.notifications.attempts?.telegram !== 3 || updatedLead.notifications.attempts?.email !== 3) {
+        throw new Error(`Attempts изменились вопреки лимиту: ${JSON.stringify(updatedLead.notifications.attempts)}`);
+      }
+    });
+
+    await testCase('6.11. Восстановление при рестарте процесса: сервер при старте поднимает pending заявки через retryPendingNotifications', async () => {
+      // 1. Добавляем заявку в leads.json со статусом pending
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const restartLeadId = `ФС-TEST-RESTART-RECOVERY-${Date.now()}`;
+      leads.push({
+        leadId: restartLeadId,
+        name: 'Клиент Рестарт Процесса',
+        phone: '+7 (916) 444-55-66',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        },
+        file: null
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // 2. Убиваем процесс и запускаем с флагом TEST_ENABLE_STARTUP_RETRY
+      serverProc.kill();
+      await new Promise(r => setTimeout(r, 500));
+      serverProc = await startServer(TEST_PORT, { TEST_ENABLE_STARTUP_RETRY: '1' });
+
+      // Даем время на выполнение recovery
+      await new Promise(r => setTimeout(r, 600));
+
+      // 3. Проверяем leads.json: pending заявка была автоматически обработана
+      const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const updatedLead = updatedLeads.find(l => l.leadId === restartLeadId);
+      if (!updatedLead) throw new Error('Заявка не найдена в leads.json');
+      if (updatedLead.notifications.telegram !== 'sent') {
+        throw new Error(`Ожидался telegram === 'sent' после рестарта, получено: ${updatedLead.notifications.telegram}`);
+      }
+      if (updatedLead.notifications.email !== 'sent') {
+        throw new Error(`Ожидался email === 'sent' после рестарта, получено: ${updatedLead.notifications.email}`);
       }
     });
 
