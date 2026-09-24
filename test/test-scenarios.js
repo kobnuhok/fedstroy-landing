@@ -14,7 +14,7 @@ function startServer(port) {
     const proc = spawn('node', ['server.js'], {
       cwd: ROOT_DIR,
       stdio: 'pipe',
-      env: { ...process.env, PORT: String(port) }
+      env: { ...process.env, PORT: String(port), NODE_ENV: 'test' }
     });
 
     proc.stdout.on('data', d => {

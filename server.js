@@ -259,12 +259,16 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
 
 // Отправка уведомления в Telegram (при наличии токена и ID чата в .env)
 async function sendToTelegram(lead, file) {
+  if (process.env.NODE_ENV === 'test') {
+    return { sent: true, mocked: true };
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!token || !chatId) {
-    console.log('[telegram:skip] Токен или Chat ID не заданы в .env — уведомление пропущено');
-    return;
+    console.warn('[telegram:skip] Токен или Chat ID не заданы в process.env — отправка пропущена');
+    return { sent: false, reason: 'Токен или Chat ID не заданы в переменных окружения' };
   }
 
   console.log(`[telegram:start] Отправка уведомления для заявки ${lead.leadId} в чат ${chatId}...`);
@@ -299,10 +303,13 @@ async function sendToTelegram(lead, file) {
 
     if (!msgRes.ok || !msgRes.data?.ok) {
       console.error('[telegram:notify:error] Ошибка Telegram API:', msgRes.data?.description);
-    } else {
-      console.log(`[telegram:notify:success] Заявка ${lead.leadId} успешно доставлена в Telegram! (message_id: ${msgRes.data.result?.message_id})`);
+      return { sent: false, error: msgRes.data?.description || 'Ошибка Telegram API' };
     }
 
+    const messageId = msgRes.data.result?.message_id;
+    console.log(`[telegram:notify:success] Заявка ${lead.leadId} успешно доставлена в Telegram! (message_id: ${messageId})`);
+
+    let docSent = false;
     if (file && fs.existsSync(file.path)) {
       const fileData = fs.readFileSync(file.path);
       const boundary = '----WebKitFormBoundary' + Math.random().toString(36).slice(2);
@@ -326,11 +333,15 @@ async function sendToTelegram(lead, file) {
       if (!docRes.ok || !docRes.data?.ok) {
         console.error('[telegram:document:error] Ошибка отправки документа:', docRes.data?.description);
       } else {
+        docSent = true;
         console.log(`[telegram:document:success] Файл ${file.originalName} успешно доставлен в Telegram!`);
       }
     }
+
+    return { sent: true, messageId, documentSent: docSent };
   } catch (err) {
     console.error('[telegram:notify:error] Сетевая ошибка при отправке в Telegram:', err.message);
+    return { sent: false, error: err.message };
   }
 }
 
@@ -339,7 +350,12 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     service: 'ООО «ФЕДСТРОЙ» API',
     uptime: Math.round(process.uptime()),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    telegram: {
+      hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+      tokenLength: process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.length : 0,
+      chatId: process.env.TELEGRAM_CHAT_ID ? String(process.env.TELEGRAM_CHAT_ID) : null
+    }
   });
 });
 
@@ -422,11 +438,12 @@ app.post('/api/lead', (req, res, next) => {
     };
 
     saveLead(newLead);
-    sendToTelegram(newLead, newLead.file);
+    const telegramResult = await sendToTelegram(newLead, newLead.file);
 
     return res.status(200).json({
       success: true,
       leadId,
+      telegram: telegramResult,
       message: 'Заявка зарегистрирована. Инженер ПТО получит уведомление.'
     });
   } catch (err) {
