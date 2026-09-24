@@ -312,6 +312,21 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.1c. Валидация: превышение лимитов длины полей (комментарий > 5000 символов) -> 400', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Клиент с длинным комментарием');
+      fd.append('phone', '+7 (916) 400-50-60');
+      fd.append('agreement', 'on');
+      fd.append('comment', 'A'.repeat(5001));
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 400) throw new Error(`Ожидался 400, получен ${res.status}`);
+      const json = await res.json();
+      if (!json.error || !json.error.includes('5000')) {
+        throw new Error(`Ожидалась ошибка превышения лимита комментария: ${json.error}`);
+      }
+    });
+
     await testCase('6.2. Проверка состояния файлового хранилища в /api/health', async () => {
       const res = await fetch(`${BASE_URL}/api/health`);
       if (res.status !== 200) throw new Error(`Ожидался 200, получен ${res.status}`);
@@ -369,6 +384,31 @@ async function runAllTests() {
         if (!json.storage || json.storage.ok !== false) {
           throw new Error(`Ожидался storage.ok === false: ${JSON.stringify(json.storage)}`);
         }
+      } finally {
+        fs.writeFileSync(DATA_FILE, '[]\n');
+      }
+    });
+
+    await testCase('6.3d. Проверка /api/health при пустом leads.json ("") -> 503 degraded и отказ сохранения', async () => {
+      // Записываем пустую строку в leads.json
+      fs.writeFileSync(DATA_FILE, '');
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/health`);
+        if (res.status !== 503) throw new Error(`Ожидался статус 503 при пустом leads.json, получен ${res.status}`);
+        const json = await res.json();
+        if (json.status !== 'degraded') throw new Error(`Ожидался status 'degraded', получен '${json.status}'`);
+        if (!json.storage || json.storage.ok !== false) {
+          throw new Error(`Ожидался storage.ok === false: ${JSON.stringify(json.storage)}`);
+        }
+
+        // Попытка сохранения новой заявки при пустом/поврежденном файле не должна затирать данные
+        const leadFd = new FormData();
+        leadFd.append('name', 'Тест защиты от перезаписи');
+        leadFd.append('phone', '+7 (916) 999-00-11');
+        leadFd.append('agreement', 'on');
+        const postRes = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: leadFd });
+        if (postRes.status !== 500) throw new Error(`Ожидался 500 при сохранении в пустой leads.json, получен ${postRes.status}`);
       } finally {
         fs.writeFileSync(DATA_FILE, '[]\n');
       }

@@ -21,6 +21,8 @@ const ALLOWED_ORIGIN_PATTERNS = [
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 ];
 
+const isVercel = !!process.env.VERCEL;
+
 app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, cb) => {
@@ -45,14 +47,10 @@ function leadRateLimiter(req, res, next) {
   if (process.env.NODE_ENV === 'test') return next();
 
   // Доверенное определение IP:
-  // На VPS Nginx перезаписывает X-Real-IP значением $remote_addr; на Vercel — x-vercel-forwarded-for или req.ip
-  const ip = (
-    req.headers['x-real-ip'] ||
-    req.headers['x-vercel-forwarded-for'] ||
-    req.ip ||
-    req.socket?.remoteAddress ||
-    'unknown'
-  );
+  // На Vercel — x-vercel-forwarded-for или req.ip; на VPS Nginx перезаписывает X-Real-IP значением $remote_addr
+  const ip = isVercel
+    ? (req.headers['x-vercel-forwarded-for'] || req.ip || req.socket?.remoteAddress || 'unknown')
+    : (req.headers['x-real-ip'] || req.ip || req.socket?.remoteAddress || 'unknown');
   const now = Date.now();
   const timestamps = (rateLimitMap.get(ip) || []).filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
 
@@ -77,7 +75,6 @@ function leadRateLimiter(req, res, next) {
   next();
 }
 
-const isVercel = !!process.env.VERCEL;
 const KEEP_UPLOADED_FILES = process.env.KEEP_UPLOADED_FILES === 'true';
 const UPLOADS_DIR = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
@@ -208,7 +205,10 @@ function checkStorageHealth(forceFresh = false) {
       error = 'leads.json missing';
     } else {
       const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-      if (content) {
+      if (!content) {
+        ok = false;
+        error = 'leads.json corrupted: empty file';
+      } else {
         const parsed = JSON.parse(content);
         if (!Array.isArray(parsed)) {
           ok = false;
@@ -228,17 +228,18 @@ function checkStorageHealth(forceFresh = false) {
 // Атомарное сохранение заявки в leads.json с защитой от повреждения данных
 function saveLead(newLead) {
   let leads = [];
-  if (fs.existsSync(DATA_FILE)) {
-    const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-    if (content) {
-      // Если файл повреждён или не является массивом — выбрасываем исключение
-      const parsed = JSON.parse(content);
-      if (!Array.isArray(parsed)) {
-        throw new Error('leads.json corrupted: expected JSON array');
-      }
-      leads = parsed;
-    }
+  if (!fs.existsSync(DATA_FILE)) {
+    throw new Error('leads.json missing');
   }
+  const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+  if (!content) {
+    throw new Error('leads.json corrupted: empty file');
+  }
+  const parsed = JSON.parse(content);
+  if (!Array.isArray(parsed)) {
+    throw new Error('leads.json corrupted: expected JSON array');
+  }
+  leads = parsed;
 
   leads.unshift(newLead);
   const randomSuffix = crypto.randomBytes(4).toString('hex');
@@ -268,7 +269,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 35 * 1024 * 1024 }, // Лимит 35 МБ
+  limits: {
+    fileSize: 35 * 1024 * 1024, // Лимит 35 МБ
+    fieldSize: 16 * 1024,        // Лимит 16 КБ на текстовое поле
+    fields: 20                  // Максимальное количество текстовых полей
+  },
   fileFilter: (req, file, cb) => {
     const allowedExts = /\.(dwg|pdf|zip|rar|7z|doc|docx|xls|xlsx|png|jpg|jpeg)$/i;
     const safeName = Buffer.from(file.originalname, 'latin1').toString('utf8');
@@ -613,7 +618,8 @@ async function sendToEmail(lead, file) {
 }
 
 app.get('/api/health', (req, res) => {
-  const forceFresh = req.query.fresh === '1';
+  // В тестах проверяем немедленно, в продакшене используем кэш (защита от DoS на fs)
+  const forceFresh = process.env.NODE_ENV === 'test';
   const { ok: storageOk, error: storageError } = checkStorageHealth(forceFresh);
 
   const statusCode = storageOk ? 200 : 503;
@@ -644,6 +650,18 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
         return res.status(400).json({
           success: false,
           error: 'Размер файла превышает лимит (35 МБ). Пожалуйста, оптимизируйте чертежи или отправьте ссылку на облачное хранилище.'
+        });
+      }
+      if (err.code === 'LIMIT_FIELD_VALUE') {
+        return res.status(400).json({
+          success: false,
+          error: 'Превышен максимальный размер текстового поля формы (16 КБ).'
+        });
+      }
+      if (err.code === 'LIMIT_FIELD_COUNT') {
+        return res.status(400).json({
+          success: false,
+          error: 'Превышено максимальное количество полей формы.'
         });
       }
       return res.status(400).json({ success: false, error: `Ошибка загрузки файла: ${err.message}` });
@@ -680,17 +698,66 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
         error: 'Пожалуйста, укажите имя контактного лица.'
       });
     }
+    if (cleanName.length > 100) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Имя контактного лица не должно превышать 100 символов.'
+      });
+    }
 
     const phoneClean = (phone || '').replace(/\D/g, '');
     const isValidPhone = (phoneClean.length === 11 && (phoneClean.startsWith('7') || phoneClean.startsWith('8'))) ||
                          (phoneClean.length === 10 && phoneClean.startsWith('9'));
-    if (!isValidPhone) {
+    if (!isValidPhone || phoneClean.length > 32 || String(phone || '').length > 32) {
       if (attachedFile?.path) {
         try { fs.unlinkSync(attachedFile.path); } catch (_) {}
       }
       return res.status(400).json({
         success: false,
         error: 'Пожалуйста, укажите корректный контактный номер телефона РФ (10–11 цифр).'
+      });
+    }
+
+    if (service && String(service).length > 200) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Поле услуги не должно превышать 200 символов.'
+      });
+    }
+
+    if (building && String(building).length > 200) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Поле типа объекта не должно превышать 200 символов.'
+      });
+    }
+
+    if (comment && String(comment).length > 5000) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Комментарий к проекту не должен превышать 5000 символов.'
+      });
+    }
+
+    if (source && String(source).length > 100) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Поле источника не должно превышать 100 символов.'
       });
     }
 
