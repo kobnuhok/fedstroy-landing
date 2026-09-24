@@ -1,4 +1,5 @@
 // Комплексный набор тестов границ надежности и безопасности API
+process.env.NODE_ENV = 'test';
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -704,6 +705,87 @@ async function runAllTests() {
       }
       if (updatedLead.notifications.email !== 'sent') {
         throw new Error(`Ожидался email === 'sent' после рестарта, получено: ${updatedLead.notifications.email}`);
+      }
+    });
+
+    await testCase('6.12. Дедупликация Telegram: при partial retry с существующим telegramMessageId текст не дублируется (messageSkipped = true)', async () => {
+      const serverApp = require('../server');
+      const testFile = {
+        originalName: 'test_dedup.dwg',
+        filename: 'test_dedup.dwg',
+        size: 1024,
+        path: path.join(TEST_UPLOADS_DIR, 'test_dedup.dwg')
+      };
+      fs.writeFileSync(testFile.path, 'sample file for dedup test');
+
+      const leadWithMsgId = {
+        leadId: 'ФС-TEST-DEDUP-001',
+        name: 'Дедупликация Тест',
+        phone: '+7 (916) 777-88-99',
+        file: { originalName: 'test_dedup.dwg', filename: 'test_dedup.dwg', size: 1024 },
+        notifications: {
+          telegram: 'partial',
+          telegramMessageId: 998877,
+          attempts: { telegram: 1, email: 1 }
+        }
+      };
+
+      // Вызов с onlyDocument: true (как при retry partial с сохраненным telegramMessageId)
+      const resOnlyDoc = await serverApp.sendToTelegram(leadWithMsgId, testFile, { onlyDocument: true });
+      if (resOnlyDoc.messageSkipped !== true) throw new Error('Ожидался messageSkipped === true');
+      if (resOnlyDoc.messageSent !== false) throw new Error('Ожидался messageSent === false');
+      if (resOnlyDoc.messageId !== 998877) throw new Error(`Ожидался сохраненный messageId === 998877, получено: ${resOnlyDoc.messageId}`);
+      if (resOnlyDoc.documentSent !== true) throw new Error('Ожидался documentSent === true');
+      if (resOnlyDoc.fullyDelivered !== true) throw new Error('Ожидался fullyDelivered === true');
+    });
+
+    await testCase('6.13. Фиксация provider IDs: в notifications сохраняются telegramMessageId, telegramDocSent и emailMessageId', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест Provider IDs');
+      fd.append('phone', '+7 (916) 555-11-22');
+      fd.append('agreement', 'on');
+      const b = new Blob(['sample data'], { type: 'application/octet-stream' });
+      fd.append('attachment', b, 'provider_id_test.dwg');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const lead = leads.find(l => l.leadId === json.leadId);
+      if (!lead) throw new Error('Заявка не найдена в leads.json');
+      if (!lead.notifications) throw new Error('Отсутствует объект notifications');
+      if (!lead.notifications.telegramMessageId) throw new Error('Отсутствует telegramMessageId в notifications');
+      if (lead.notifications.telegramDocSent !== true) throw new Error(`Ожидался telegramDocSent === true, получено: ${lead.notifications.telegramDocSent}`);
+      if (!lead.notifications.emailMessageId) throw new Error('Отсутствует emailMessageId в notifications');
+    });
+
+    await testCase('6.14. Семафор параллельности: runWithNotificationQueue ограничивает одновременные задачи до MAX_CONCURRENT_NOTIFICATIONS (2)', async () => {
+      const serverApp = require('../server');
+      let activeCount = 0;
+      let maxSeenActive = 0;
+
+      const makeTask = (delayMs) => () => serverApp.runWithNotificationQueue(async () => {
+        activeCount++;
+        if (activeCount > maxSeenActive) maxSeenActive = activeCount;
+        await new Promise(r => setTimeout(r, delayMs));
+        activeCount--;
+      });
+
+      // Запускаем одновременно 5 задач
+      await Promise.all([
+        makeTask(50)(),
+        makeTask(50)(),
+        makeTask(50)(),
+        makeTask(50)(),
+        makeTask(50)()
+      ]);
+
+      if (maxSeenActive > 2) {
+        throw new Error(`Семафор превышен: одновременно выполнялось ${maxSeenActive} задач (максимум 2)`);
+      }
+      if (maxSeenActive !== 2) {
+        throw new Error(`Ожидалось достижение максимума в 2 задачи, зафиксировано: ${maxSeenActive}`);
       }
     });
 
