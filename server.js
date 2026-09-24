@@ -162,7 +162,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         path: apiPath,
         method: method,
         headers: headers,
-        timeout: 10000
+        timeout: 60000
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -331,35 +331,45 @@ async function sendToTelegram(lead, file) {
     console.log(`[telegram:notify:success] Заявка ${lead.leadId} успешно доставлена в Telegram! (message_id: ${messageId})`);
 
     let docSent = false;
+    let docError = null;
     if (file && fs.existsSync(file.path)) {
-      const fileData = fs.readFileSync(file.path);
-      const boundary = '----WebKitFormBoundary' + Math.random().toString(36).slice(2);
-      const filename = Buffer.from(file.originalName, 'latin1').toString('utf8');
-      const caption = `ТЗ к заявке ${lead.leadId} от ${lead.name || lead.phone}`;
+      try {
+        const fileData = fs.readFileSync(file.path);
+        const boundary = '----WebKitFormBoundary' + Math.random().toString(36).slice(2);
+        // Безопасное имя файла: без двойного перекодирования и без спецсимволов кавычек
+        const safeOriginalName = (file.originalName || file.filename || 'document.pdf').replace(/[\r\n"]/g, '_');
+        const caption = `ТЗ к заявке ${lead.leadId} от ${lead.name || lead.phone}`;
 
-      const formBuffers = [
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${targetChatId}\r\n`),
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`),
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="document"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
-        fileData,
-        Buffer.from(`\r\n--${boundary}--\r\n`)
-      ];
-      const docBody = Buffer.concat(formBuffers);
+        const formBuffers = [
+          Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${targetChatId}\r\n`),
+          Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`),
+          Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="document"; filename="${safeOriginalName}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
+          fileData,
+          Buffer.from(`\r\n--${boundary}--\r\n`)
+        ];
+        const docBody = Buffer.concat(formBuffers);
 
-      const docRes = await requestTelegram(`/bot${token}/sendDocument`, 'POST', {
-        'Content-Type': 'multipart/form-data; boundary=' + boundary,
-        'Content-Length': docBody.length
-      }, docBody);
+        const docRes = await requestTelegram(`/bot${token}/sendDocument`, 'POST', {
+          'Content-Type': 'multipart/form-data; boundary=' + boundary,
+          'Content-Length': docBody.length
+        }, docBody);
 
-      if (!docRes.ok || !docRes.data?.ok) {
-        console.error('[telegram:document:error] Ошибка отправки документа:', docRes.data?.description);
-      } else {
-        docSent = true;
-        console.log(`[telegram:document:success] Файл ${file.originalName} успешно доставлен в Telegram!`);
+        if (!docRes.ok || !docRes.data?.ok) {
+          docError = docRes.data?.description || 'Не удалось отправить документ в Telegram';
+          console.error('[telegram:document:error] Ошибка отправки документа:', docError);
+        } else {
+          docSent = true;
+          console.log(`[telegram:document:success] Файл ${safeOriginalName} успешно доставлен в Telegram!`);
+        }
+      } catch (docErr) {
+        docError = docErr.message;
+        console.error('[telegram:document:fatal]', docErr.message);
+      } finally {
+        try { fs.unlinkSync(file.path); } catch (_) {}
       }
     }
 
-    return { sent: true, messageId, documentSent: docSent };
+    return { sent: true, messageId, documentSent: docSent, documentError: docError };
   } catch (err) {
     console.error('[telegram:notify:error] Сетевая ошибка при отправке в Telegram:', err.message);
     return { sent: false, error: err.message };
