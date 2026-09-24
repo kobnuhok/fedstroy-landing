@@ -38,6 +38,12 @@ let activeNotificationJobs = 0;
 const notificationQueue = [];
 
 function runWithNotificationQueue(taskFn) {
+  // В serverless (Vercel) экземпляры масштабируются платформой, лимит тела 4.5 МБ,
+  // а задачи управляются через waitUntil. Выполняем напрямую, предотвращая QUEUE_OVERFLOW.
+  if (isVercel) {
+    return Promise.resolve().then(() => taskFn());
+  }
+
   return new Promise((resolve, reject) => {
     if (activeNotificationJobs >= MAX_CONCURRENT_NOTIFICATIONS && notificationQueue.length >= MAX_NOTIFICATION_QUEUE) {
       const err = new Error(`Очередь уведомлений переполнена (${MAX_NOTIFICATION_QUEUE} ожидающих задач)`);
@@ -69,14 +75,49 @@ function runWithNotificationQueue(taskFn) {
 }
 
 // In-memory буфер недозаписанных патчей статусов (на случай временных сбоев/блокировок leads.json на диске)
+const MAX_UNPERSISTED_PATCHES = 1000;
+const EMERGENCY_PATCHES_FILE = () => path.join(DATA_DIR, 'unpersisted_patches_emergency.json');
 const unpersistedNotificationPatches = new Map();
 
 function enqueueUnpersistedNotificationPatch(leadId, patch) {
+  if (unpersistedNotificationPatches.size >= MAX_UNPERSISTED_PATCHES && !unpersistedNotificationPatches.has(leadId)) {
+    console.error(`[lead:unpersisted-patches:emergency] Достигнут лимит буфера (${MAX_UNPERSISTED_PATCHES}). Аварийная запись во внешний fallback-файл.`);
+    try {
+      const emergencyFile = EMERGENCY_PATCHES_FILE();
+      let existingEmergency = {};
+      if (fs.existsSync(emergencyFile)) {
+        try { existingEmergency = JSON.parse(fs.readFileSync(emergencyFile, 'utf8')); } catch (_) {}
+      }
+      existingEmergency[leadId] = patch;
+      fs.writeFileSync(emergencyFile, JSON.stringify(existingEmergency, null, 2), 'utf8');
+    } catch (eErr) {
+      console.error('[lead:unpersisted-patches:fatal-disk]', eErr.message);
+      const oldestKey = unpersistedNotificationPatches.keys().next().value;
+      if (oldestKey) {
+        console.warn(`[lead:unpersisted-patches:evict] Вытеснение старейшей записи ${oldestKey} для сохранения статуса ${leadId}`);
+        unpersistedNotificationPatches.delete(oldestKey);
+      }
+    }
+  }
   const existing = unpersistedNotificationPatches.get(leadId) || {};
   unpersistedNotificationPatches.set(leadId, { ...existing, ...patch });
 }
 
 function flushUnpersistedNotificationPatches() {
+  const emergencyFile = EMERGENCY_PATCHES_FILE();
+  if (fs.existsSync(emergencyFile)) {
+    try {
+      const emergencyData = JSON.parse(fs.readFileSync(emergencyFile, 'utf8'));
+      if (emergencyData && typeof emergencyData === 'object') {
+        for (const [id, p] of Object.entries(emergencyData)) {
+          const current = unpersistedNotificationPatches.get(id) || {};
+          unpersistedNotificationPatches.set(id, { ...p, ...current });
+        }
+      }
+      fs.unlinkSync(emergencyFile);
+    } catch (_) {}
+  }
+
   if (unpersistedNotificationPatches.size === 0) return true;
   let allSaved = true;
   for (const [leadId, patch] of Array.from(unpersistedNotificationPatches.entries())) {
@@ -1144,18 +1185,20 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       const notifyPromise = runWithNotificationQueue(() => Promise.allSettled([
         sendToTelegram(leadRecord, fileAttachment),
         sendToEmail(leadRecord, fileAttachment)
-      ])).then(([tgSettled, emSettled]) => {
+      ])).then(async ([tgSettled, emSettled]) => {
         const tgRes = tgSettled.status === 'fulfilled' ? tgSettled.value : null;
         const emRes = emSettled.status === 'fulfilled' ? emSettled.value : null;
         recordNotificationResults(tgRes, emRes);
+        try {
+          await retryPendingNotifications(true);
+        } catch (_) {}
       }).catch(err => {
-        if (err.code === 'QUEUE_OVERFLOW') {
-          console.warn(`[lead:notify:backpressure] Очередь уведомлений переполнена. Заявка ${leadRecord.leadId} зарегистрирована в leads.json и будет отправлена через retry.`);
-        } else {
-          console.error('[lead:notify:vercel:error]', err.message);
-        }
+        console.error('[lead:notify:vercel:error]', err.message);
       }).finally(() => {
-        if (attachedFile?.path && !KEEP_UPLOADED_FILES) {
+        const pendingPatch = unpersistedNotificationPatches.get(leadRecord.leadId);
+        const currentNotif = pendingPatch ? { ...leadRecord.notifications, ...pendingPatch } : leadRecord.notifications;
+        const isStillPending = currentNotif && (currentNotif.telegram === 'pending' || currentNotif.email === 'pending');
+        if (!isStillPending && attachedFile?.path && !KEEP_UPLOADED_FILES) {
           try {
             if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
           } catch (_) {}
@@ -1199,7 +1242,10 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       } catch (asyncErr) {
         console.error('[lead:notify:background:error]', asyncErr.message);
       } finally {
-        if (attachedFile?.path && !KEEP_UPLOADED_FILES) {
+        const pendingPatch = unpersistedNotificationPatches.get(leadRecord.leadId);
+        const currentNotif = pendingPatch ? { ...leadRecord.notifications, ...pendingPatch } : leadRecord.notifications;
+        const isStillPending = currentNotif && (currentNotif.telegram === 'pending' || currentNotif.email === 'pending');
+        if (!isStillPending && attachedFile?.path && !KEEP_UPLOADED_FILES) {
           try {
             if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
           } catch (_) {}
@@ -1304,18 +1350,22 @@ async function retryPendingNotifications(force = false) {
       console.log(`[notify:recovery] Найдено ${retryableLeads.length} заявок для повторной отправки (pending/failed/partial).`);
       for (const lead of retryableLeads) {
         await runWithNotificationQueue(async () => {
-          const fileExpected = !!lead.file;
+          const pendingPatch = unpersistedNotificationPatches.get(lead.leadId);
+          const effectiveNotif = pendingPatch ? { ...lead.notifications, ...pendingPatch } : (lead.notifications || {});
+          const effectiveLead = { ...lead, notifications: effectiveNotif };
+
+          const fileExpected = !!effectiveLead.file;
           let fileAttachment = null;
           let fileMissing = false;
 
           if (fileExpected) {
-            const filename = lead.file.filename;
+            const filename = effectiveLead.file.filename;
             const filePath = filename ? path.join(UPLOADS_DIR, filename) : null;
             if (filePath && fs.existsSync(filePath)) {
               fileAttachment = {
-                originalName: lead.file.originalName,
-                filename: lead.file.filename,
-                size: lead.file.size,
+                originalName: effectiveLead.file.originalName,
+                filename: effectiveLead.file.filename,
+                size: effectiveLead.file.size,
                 path: filePath
               };
             } else {
@@ -1323,14 +1373,14 @@ async function retryPendingNotifications(force = false) {
             }
           }
 
-          const doRetryTelegram = shouldRetryTelegram(lead.notifications);
-          const doRetryEmail = shouldRetryEmail(lead.notifications);
+          const doRetryTelegram = shouldRetryTelegram(effectiveNotif);
+          const doRetryEmail = shouldRetryEmail(effectiveNotif);
 
           // Если Telegram уже в статусе 'partial' (текстовое сообщение ранее уже было доставлено),
           // а файл физически отсутствует на сервере — повторно слать текст в чат не имеет смысла:
           // фиксируем partial и отказ от повтора.
           let skipTelegramSend = false;
-          if (doRetryTelegram && lead.notifications.telegram === 'partial' && fileMissing) {
+          if (doRetryTelegram && effectiveNotif.telegram === 'partial' && fileMissing) {
             skipTelegramSend = true;
             const skipPatch = {
               telegram: 'partial',
@@ -1338,23 +1388,23 @@ async function retryPendingNotifications(force = false) {
               fileMissing: true,
               incTelegramAttempt: true
             };
-            const saved = updateLeadNotificationStatus(lead.leadId, skipPatch);
+            const saved = updateLeadNotificationStatus(effectiveLead.leadId, skipPatch);
             if (!saved) {
-              console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${lead.leadId}! Постановка в буфер отложенной синхронизации.`);
-              enqueueUnpersistedNotificationPatch(lead.leadId, skipPatch);
+              console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${effectiveLead.leadId}! Постановка в буфер отложенной синхронизации.`);
+              enqueueUnpersistedNotificationPatch(effectiveLead.leadId, skipPatch);
             }
           }
 
-          const isPartialWithText = lead.notifications.telegram === 'partial' && !!lead.notifications.telegramMessageId;
+          const isPartialWithText = effectiveNotif.telegram === 'partial' && !!effectiveNotif.telegramMessageId;
           const tasks = [];
           if (doRetryTelegram && !skipTelegramSend) {
-            tasks.push(sendToTelegram(lead, fileAttachment, { onlyDocument: isPartialWithText }));
+            tasks.push(sendToTelegram(effectiveLead, fileAttachment, { onlyDocument: isPartialWithText }));
           } else {
             tasks.push(Promise.resolve(null));
           }
 
           if (doRetryEmail) {
-            tasks.push(sendToEmail(lead, fileAttachment));
+            tasks.push(sendToEmail(effectiveLead, fileAttachment));
           } else {
             tasks.push(Promise.resolve(null));
           }
@@ -1382,10 +1432,10 @@ async function retryPendingNotifications(force = false) {
           }
 
           if (Object.keys(patch).length > 0) {
-            const saved = updateLeadNotificationStatus(lead.leadId, patch);
+            const saved = updateLeadNotificationStatus(effectiveLead.leadId, patch);
             if (!saved) {
-              console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${lead.leadId} при retry! Постановка в буфер отложенной синхронизации.`);
-              enqueueUnpersistedNotificationPatch(lead.leadId, patch);
+              console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${effectiveLead.leadId} при retry! Постановка в буфер отложенной синхронизации.`);
+              enqueueUnpersistedNotificationPatch(effectiveLead.leadId, patch);
             }
           }
         });

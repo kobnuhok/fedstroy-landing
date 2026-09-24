@@ -908,7 +908,7 @@ async function runAllTests() {
       }
     });
 
-    await testCase('6.17. Устойчивость к сбою записи статуса: буфер unpersistedNotificationPatches сохраняет статус и синхронизирует его при восстановлении', async () => {
+    await testCase('6.17. Устойчивость к сбою записи статуса: буфер unpersistedNotificationPatches сохраняет статус при ошибке диска и синхронизирует его при восстановлении', async () => {
       const serverApp = require('../server');
       const testLeadId = `ФС-TEST-UNPERSISTED-${Date.now()}`;
 
@@ -930,13 +930,39 @@ async function runAllTests() {
       });
       fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
 
-      // Имитируем сбой записи: ставим патч в in-memory буфер unpersistedNotificationPatches
-      serverApp.enqueueUnpersistedNotificationPatch(testLeadId, {
+      // Имитируем реальный сбой диска: перехватываем fs.renameSync
+      const originalRenameSync = fs.renameSync;
+      let renameFailed = false;
+      fs.renameSync = () => {
+        renameFailed = true;
+        const err = new Error('EACCES: permission denied, rename temporary file');
+        err.code = 'EACCES';
+        throw err;
+      };
+
+      const testPatch = {
         telegram: 'sent',
         email: 'sent',
         telegramMessageId: 888111,
         emailMessageId: 'smtp-ok-123'
-      });
+      };
+
+      try {
+        // Вызываем обновление статуса - из-за сбоя диска оно должно вернуть false
+        const saved = serverApp.updateLeadNotificationStatus(testLeadId, testPatch);
+        if (saved !== false) {
+          throw new Error(`Ожидалось, что updateLeadNotificationStatus вернет false при ошибке renameSync, получено: ${saved}`);
+        }
+        if (!renameFailed) {
+          throw new Error('renameSync не был вызван!');
+        }
+
+        // Помещаем в буфер отложенных патчей (как это делает recordNotificationResults и retryPendingNotifications)
+        serverApp.enqueueUnpersistedNotificationPatch(testLeadId, testPatch);
+      } finally {
+        // Восстанавливаем оригинальный renameSync
+        fs.renameSync = originalRenameSync;
+      }
 
       if (!serverApp.unpersistedNotificationPatches.has(testLeadId)) {
         throw new Error('Патч не сохранен в unpersistedNotificationPatches');
@@ -963,6 +989,45 @@ async function runAllTests() {
       if (flushedLead.notifications.telegramMessageId !== 888111) {
         throw new Error('telegramMessageId не был записан на диск');
       }
+    });
+
+    await testCase('6.18. Защита от утечки памяти: аварийный сброс в файл при превышении MAX_UNPERSISTED_PATCHES', async () => {
+      const serverApp = require('../server');
+      const overflowLeadId = `ФС-OVERFLOW-${Date.now()}`;
+
+      // Наполняем буфер до 1000 элементов
+      for (let i = 0; i < 1000; i++) {
+        serverApp.unpersistedNotificationPatches.set(`DUMMY-${i}`, { telegram: 'sent' });
+      }
+
+      // Добавляем 1001-й элемент через enqueueUnpersistedNotificationPatch
+      serverApp.enqueueUnpersistedNotificationPatch(overflowLeadId, {
+        telegram: 'sent',
+        email: 'sent',
+        telegramMessageId: 999999
+      });
+
+      const emergencyPath = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+      if (!fs.existsSync(emergencyPath)) {
+        throw new Error('Аварийный файл unpersisted_patches_emergency.json не был создан при превышении лимита!');
+      }
+
+      const emergencyContent = JSON.parse(fs.readFileSync(emergencyPath, 'utf8'));
+      if (!emergencyContent[overflowLeadId] || emergencyContent[overflowLeadId].telegramMessageId !== 999999) {
+        throw new Error('Данные заявки не найдены в аварийном файле!');
+      }
+
+      // Очищаем фиктивные записи
+      for (let i = 0; i < 1000; i++) {
+        serverApp.unpersistedNotificationPatches.delete(`DUMMY-${i}`);
+      }
+
+      // При flush аварийный файл считывается и удаляется
+      serverApp.flushUnpersistedNotificationPatches();
+      if (fs.existsSync(emergencyPath)) {
+        throw new Error('Аварийный файл не был удален после flush!');
+      }
+      serverApp.unpersistedNotificationPatches.delete(overflowLeadId);
     });
 
   } finally {
