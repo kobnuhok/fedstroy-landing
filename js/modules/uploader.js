@@ -54,6 +54,13 @@ export function initUploader() {
         return;
       }
 
+      // На облачной платформе Vercel действует жесткий платформенный лимит 4.5 МБ на тело запроса
+      if (typeof window !== 'undefined' && window.location?.hostname?.endsWith('vercel.app') && file.size > 4.5 * 1024 * 1024) {
+        showError(`На демо-стенде Vercel действует платформенный лимит 4.5 МБ (выбран файл: ${formatBytes(file.size)}). Пожалуйста, укажите ссылку на облачный диск в комментарии или сожмите чертёж.`);
+        input.value = '';
+        return;
+      }
+
       // Отображаем превью выбранного файла
       if (fileNameEl) fileNameEl.textContent = file.name;
       if (fileSizeEl) fileSizeEl.textContent = formatBytes(file.size);

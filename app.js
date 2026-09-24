@@ -611,6 +611,13 @@
           return;
         }
   
+        // На облачной платформе Vercel действует жесткий платформенный лимит 4.5 МБ на тело запроса
+        if (typeof window !== 'undefined' && window.location?.hostname?.endsWith('vercel.app') && file.size > 4.5 * 1024 * 1024) {
+          showError(`На демо-стенде Vercel действует платформенный лимит 4.5 МБ (выбран файл: ${formatBytes(file.size)}). Пожалуйста, укажите ссылку на облачный диск в комментарии или сожмите чертёж.`);
+          input.value = '';
+          return;
+        }
+  
         // Отображаем превью выбранного файла
         if (fileNameEl) fileNameEl.textContent = file.name;
         if (fileSizeEl) fileSizeEl.textContent = formatBytes(file.size);
@@ -845,6 +852,9 @@
           });
   
           if (!response.ok) {
+            if (response.status === 413) {
+              throw new Error('Размер файла превышает лимит сервера (на Vercel максимум 4.5 МБ). Пожалуйста, укажите ссылку на облачный диск или уменьшите размер файла.');
+            }
             let errorMsg = `Сервер вернул ошибку (${response.status})`;
             try {
               const errData = await response.json();
@@ -891,7 +901,7 @@
             </span>
             <h3 class="text-2xl font-bold font-heading text-slate-900 mb-1 js-success-lead-id">Номер заявки: ${escapeHtml(result.leadId)}</h3>
             <p class="text-slate-600 mb-5 max-w-md mx-auto text-sm leading-relaxed">
-              Заявка зарегистрирована в системе ООО «ФЕДСТРОЙ». Инженер ПТО получит уведомление и свяжется с вами в рабочее время (пн–пт, 9:00–18:00 МСК).
+              Заявка зарегистрирована в системе ООО «ФЕДСТРОЙ». Мы свяжемся с вами в рабочее время (пн–пт, 9:00–18:00 МСК) для уточнения деталей и расчёта сметы.
             </p>
             ${attachedFileName ? `
               <div class="inline-flex items-center gap-2 text-xs text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl mb-5">

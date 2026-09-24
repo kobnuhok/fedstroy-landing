@@ -68,6 +68,7 @@ function leadRateLimiter(req, res, next) {
 }
 
 const isVercel = !!process.env.VERCEL;
+const KEEP_UPLOADED_FILES = process.env.KEEP_UPLOADED_FILES === 'true';
 const UPLOADS_DIR = isVercel ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
 const DATA_DIR = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'leads.json');
@@ -300,6 +301,9 @@ async function sendToTelegram(lead, file) {
 
   if (!token || !chatId) {
     console.warn('[telegram:skip] Токен или Chat ID не заданы в process.env — отправка пропущена');
+    if (file?.path && !KEEP_UPLOADED_FILES) {
+      try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
+    }
     return { sent: false, reason: 'Токен или Chat ID не заданы в переменных окружения' };
   }
 
@@ -396,8 +400,6 @@ async function sendToTelegram(lead, file) {
       } catch (docErr) {
         docError = docErr.message;
         console.error('[telegram:document:fatal]', docErr.message);
-      } finally {
-        try { fs.unlinkSync(file.path); } catch (_) {}
       }
     }
 
@@ -405,6 +407,13 @@ async function sendToTelegram(lead, file) {
   } catch (err) {
     console.error('[telegram:notify:error] Сетевая ошибка при отправке в Telegram:', err.message);
     return { sent: false, error: err.message };
+  } finally {
+    // Гарантированная очистка временного файла на сервере при любых сценариях (сбой, отказ Telegram, успех)
+    if (file?.path && !KEEP_UPLOADED_FILES) {
+      try {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      } catch (_) {}
+    }
   }
 }
 
@@ -505,7 +514,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       success: true,
       leadId,
       telegram: telegramResult,
-      message: 'Заявка зарегистрирована. Инженер ПТО получит уведомление.'
+      message: 'Заявка зарегистрирована. Мы свяжемся с вами в рабочее время.'
     });
   } catch (err) {
     if (attachedFile?.path) {
