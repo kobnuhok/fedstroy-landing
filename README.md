@@ -8,7 +8,7 @@
 - **Стили:** Tailwind CSS v4 (локальная CLI-компиляция), кастомные стили (`css/style.css`, `css/adaptive.css`)
 - **Скрипты:** Vanilla JavaScript (ES-модули `js/modules/`, fallback `app.js`)
 - **Бэкенд:** Node.js, Express, Multer, dotenv
-- **Интеграции:** Telegram Bot API (уведомления и передача файлов ТЗ)
+- **Интеграции:** Двойное дублирование заявок — Telegram Bot API + Корпоративная почта Email (SMTP через `nodemailer`)
 
 ## Структура проекта
 
@@ -59,7 +59,7 @@ npm run watch
 
 ### 3. Настройка окружения (бэкенд)
 
-Для отправки уведомлений в Telegram скопируйте `.env.example` в `.env` и укажите данные бота:
+Для отправки уведомлений в Telegram и на корпоративную почту скопируйте `.env.example` в `.env`:
 
 ```bash
 cp .env.example .env
@@ -67,8 +67,12 @@ cp .env.example .env
 
 Параметры `.env`:
 - `PORT` — порт сервера (по умолчанию `8080`)
+- `KEEP_UPLOADED_FILES` — сохранять ли загруженные файлы на диске после отправки (`false` по умолчанию)
 - `TELEGRAM_BOT_TOKEN` — токен бота Telegram (получить у `@BotFather`)
 - `TELEGRAM_CHAT_ID` — ID чата или группы для получения заявок
+- `EMAIL_TO` — почтовый ящик для дублирования заявок (по умолчанию `kobnuhok@yandex.ru`)
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` — параметры SMTP-сервера (по умолчанию Яндекс: `smtp.yandex.ru:465`)
+- `SMTP_USER`, `SMTP_PASS` — логин и пароль приложения для отправки писем
 
 ### 4. Запуск сервера
 

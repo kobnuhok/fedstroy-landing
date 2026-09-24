@@ -9,6 +9,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -72,6 +73,35 @@ const KEEP_UPLOADED_FILES = process.env.KEEP_UPLOADED_FILES === 'true';
 const UPLOADS_DIR = isVercel ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
 const DATA_DIR = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'leads.json');
+
+// Конфигурация дублирования заявок на корпоративную почту (SMTP)
+const EMAIL_TO = process.env.EMAIL_TO || 'kobnuhok@yandex.ru';
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.yandex.ru';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+const SMTP_SECURE = process.env.SMTP_SECURE !== 'false';
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+
+let mailTransporter = null;
+
+function getMailTransporter() {
+  if (!SMTP_USER || !SMTP_PASS) return null;
+  if (!mailTransporter) {
+    mailTransporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    });
+  }
+  return mailTransporter;
+}
 
 try {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -187,7 +217,12 @@ const upload = multer({
 
 function escapeHtml(str) {
   if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // Запрос к Telegram API: прямая отправка на Vercel/VPS + поддержка локального туннеля (обход блокировок на ПК в РФ)
@@ -305,10 +340,7 @@ async function sendToTelegram(lead, file) {
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!token || !chatId) {
-    console.warn('[telegram:skip] Токен или Chat ID не заданы в process.env — отправка пропущена');
-    if (file?.path && !KEEP_UPLOADED_FILES) {
-      try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
-    }
+    console.warn('[telegram:skip] Токен или Chat ID не заданы в process.env — отправка в Telegram пропущена');
     return { sent: false, reason: 'Токен или Chat ID не заданы в переменных окружения' };
   }
 
@@ -412,13 +444,106 @@ async function sendToTelegram(lead, file) {
   } catch (err) {
     console.error('[telegram:notify:error] Сетевая ошибка при отправке в Telegram:', err.message);
     return { sent: false, error: err.message };
-  } finally {
-    // Гарантированная очистка временного файла на сервере при любых сценариях (сбой, отказ Telegram, успех)
-    if (file?.path && !KEEP_UPLOADED_FILES) {
-      try {
-        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      } catch (_) {}
+  }
+}
+
+// Отправка дублирующего уведомления на корпоративную почту через SMTP (nodemailer)
+async function sendToEmail(lead, file) {
+  if (process.env.NODE_ENV === 'test') {
+    return { sent: true, mocked: true, recipient: EMAIL_TO };
+  }
+
+  const transporter = getMailTransporter();
+  if (!transporter) {
+    console.log(`[email:skip] SMTP не настроен (SMTP_USER/SMTP_PASS не заданы в .env). Дублирование на ${EMAIL_TO} пропущено, заявка сохранена локально.`);
+    return { sent: false, recipient: EMAIL_TO, reason: 'SMTP не настроен (задайте SMTP_USER и SMTP_PASS в .env)' };
+  }
+
+  console.log(`[email:start] Отправка дубликата заявки ${lead.leadId} на почту ${EMAIL_TO}...`);
+
+  try {
+    const mskTime = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+    const safeName = escapeHtml(lead.name) || 'Не указано';
+    const safePhone = escapeHtml(lead.phone);
+    const safeService = escapeHtml(lead.service) || '—';
+    const safeArea = lead.area ? `${escapeHtml(lead.area)} м²` : '—';
+    const safeBuilding = escapeHtml(lead.building) || '—';
+    const safeSource = escapeHtml(lead.source) || 'Форма на сайте';
+    const safeComment = escapeHtml(lead.comment) || '—';
+
+    const htmlBody = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #ffffff;">
+        <div style="background: #0f172a; padding: 24px; color: #ffffff;">
+          <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #ffffff;">🏗 Новая заявка с сайта ООО «ФЕДСТРОЙ»</h2>
+          <p style="margin: 0; color: #94a3b8; font-size: 14px;">Номер расчетного листа: <strong style="color: #38bdf8;">${lead.leadId}</strong></p>
+        </div>
+        <div style="padding: 24px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <tbody>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b; width: 35%;"><strong>Клиент:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a; font-weight: 600;">${safeName}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b;"><strong>Телефон:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;"><a href="tel:${lead.phone.replace(/[^+\d]/g, '')}" style="color: #0284c7; text-decoration: none; font-weight: 700;">${safePhone}</a></td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b;"><strong>Услуга:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;">${safeService}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b;"><strong>Площадь:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;">${safeArea}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b;"><strong>Тип объекта:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;">${safeBuilding}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b;"><strong>Источник:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;">${safeSource}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b; vertical-align: top;"><strong>Комментарий:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a; white-space: pre-wrap;">${safeComment}</td>
+              </tr>
+              ${file ? `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 0; color: #64748b;"><strong>Прикреплен файл:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;">📎 ${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)</td>
+              </tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+        <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8;">
+          ⏰ Заявка зарегистрирована в системе: ${mskTime} (МСК)<br>
+          Отправлено сервером ООО «ФЕДСТРОЙ» на ${EMAIL_TO}
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: `"ООО «ФЕДСТРОЙ»" <${SMTP_USER}>`,
+      to: EMAIL_TO,
+      replyTo: SMTP_USER,
+      subject: `🏗 Новая заявка [${lead.leadId}]: ${lead.name || lead.phone}`,
+      html: htmlBody
+    };
+
+    if (file && fs.existsSync(file.path)) {
+      mailOptions.attachments = [{
+        filename: file.originalName || file.filename || 'attachment.pdf',
+        path: file.path
+      }];
     }
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[email:notify:success] Заявка ${lead.leadId} успешно доставлена на почту ${EMAIL_TO} (ID: ${info.messageId})`);
+    return { sent: true, recipient: EMAIL_TO, messageId: info.messageId };
+  } catch (err) {
+    console.error('[email:notify:error] Ошибка отправки на почту:', err.message);
+    return { sent: false, recipient: EMAIL_TO, error: err.message };
   }
 }
 
@@ -444,6 +569,11 @@ app.get('/api/health', (req, res) => {
     storage: {
       ok: storageOk,
       ...(storageError ? { error: storageError } : {})
+    },
+    notifications: {
+      telegramConfigured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+      emailRecipient: EMAIL_TO,
+      smtpConfigured: !!(SMTP_USER && SMTP_PASS)
     },
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString()
@@ -544,23 +674,33 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
     };
 
     saveLead(newLead);
-    const telegramResult = await sendToTelegram(newLead, newLead.file);
+
+    // Параллельная отправка уведомлений: Telegram + Email
+    const [telegramResult, emailResult] = await Promise.all([
+      sendToTelegram(newLead, newLead.file),
+      sendToEmail(newLead, newLead.file)
+    ]);
 
     return res.status(200).json({
       success: true,
       leadId,
       telegram: telegramResult,
+      email: emailResult,
       message: 'Заявка зарегистрирована. Мы свяжемся с вами в рабочее время.'
     });
   } catch (err) {
-    if (attachedFile?.path) {
-      try { fs.unlinkSync(attachedFile.path); } catch (_) {}
-    }
     console.error('[lead:process:error]', err);
     return res.status(500).json({
       success: false,
       error: 'Произошла ошибка при обработке заявки на сервере. Пожалуйста, позвоните нам по номеру 8 (800) 700-02-23.'
     });
+  } finally {
+    // Централизованная очистка временного файла на сервере ПОСЛЕ завершения всех каналов оповещения
+    if (attachedFile?.path && !KEEP_UPLOADED_FILES) {
+      try {
+        if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
+      } catch (_) {}
+    }
   }
 });
 

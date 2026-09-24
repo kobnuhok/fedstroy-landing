@@ -296,6 +296,28 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.4. Проверка статуса email-уведомлений в /api/health и дублирования в /api/lead', async () => {
+      const healthRes = await fetch(`${BASE_URL}/api/health`);
+      const healthJson = await healthRes.json();
+      if (!healthJson.notifications || healthJson.notifications.emailRecipient !== 'kobnuhok@yandex.ru') {
+        throw new Error(`Некорректный статус notifications в health: ${JSON.stringify(healthJson.notifications)}`);
+      }
+
+      const fd = new FormData();
+      fd.append('name', 'Тест Почты');
+      fd.append('phone', '+7 (916) 777-88-99');
+      fd.append('agreement', 'on');
+      const b = new Blob(['dwg content'], { type: 'application/octet-stream' });
+      fd.append('attachment', b, 'plan_email.dwg');
+
+      const leadRes = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (leadRes.status !== 200) throw new Error(`Ожидался 200, получен ${leadRes.status}`);
+      const leadJson = await leadRes.json();
+      if (!leadJson.email || leadJson.email.sent !== true || leadJson.email.recipient !== 'kobnuhok@yandex.ru') {
+        throw new Error(`Ожидалось успешное дублирование на email: ${JSON.stringify(leadJson.email)}`);
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();
