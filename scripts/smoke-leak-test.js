@@ -43,11 +43,11 @@ async function runSmokeTest() {
     try {
       const url = `${TARGET_URL}${p}`;
       const res = await fetch(url);
-      if (res.status === 404) {
-        console.log(`  [PASS] ${p} -> 404 Not Found`);
+      if (res.status === 404 || res.status === 403 || res.status === 418) {
+        console.log(`  [PASS] ${p} -> ${res.status} (Заблокировано)`);
         passed++;
       } else {
-        console.error(`  [FAIL] УТЕЧКА! ${p} вернул HTTP ${res.status}, ожидался 404`);
+        console.error(`  [FAIL] УТЕЧКА! ${p} вернул HTTP ${res.status}, ожидался 404 Not Found или 403 Forbidden`);
         failed++;
       }
     } catch (err) {

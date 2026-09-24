@@ -226,5 +226,6 @@ node scripts/live-notification-smoke.js --send   # с реальной отпр�
   ```
 - Nginx в качестве reverse-proxy (`deploy/nginx.conf`) с архитектурой **Allowlist** (строгий допуск только публичных файлов `/index.html`, `/app.js`, `/privacy.html`, `/consent.html`, `/requisites.html`, `/css/*`, `/js/*`, префиксная изоляция `^~ /api/` и `404 Not Found` по умолчанию для любых служебных файлов репозитория), директивой `client_max_body_size 50M;` и аппаратным `limit_req`.
 - База заявок персистентно сохраняется на защищённый SSD в `./data/leads.json` с проверкой схемы массива `Array.isArray` и атомарной записью. При установке `KEEP_UPLOADED_FILES=true` файлы чертежей также сохраняются на постоянный диск в `./uploads/`.
+- Автоматический ежедневный бэкап и ротация архивов (скрипт `deploy/backup-leads.sh` с ротацией 60 дней для crontab).
 - Telegram Bot API используется как закрытый защищённый канал оперативной диспетчеризации инженеров ПТО.
 

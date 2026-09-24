@@ -21,6 +21,7 @@ const ALLOWED_ORIGIN_PATTERNS = [
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 ];
 
+app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, cb) => {
     // Разрешаем запросы без origin (server-to-server, curl) и из доверенных источников
@@ -43,7 +44,15 @@ function leadRateLimiter(req, res, next) {
   // В тестах не ограничиваем скорость
   if (process.env.NODE_ENV === 'test') return next();
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  // Доверенное определение IP:
+  // На VPS Nginx перезаписывает X-Real-IP значением $remote_addr; на Vercel — x-vercel-forwarded-for или req.ip
+  const ip = (
+    req.headers['x-real-ip'] ||
+    req.headers['x-vercel-forwarded-for'] ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    'unknown'
+  );
   const now = Date.now();
   const timestamps = (rateLimitMap.get(ip) || []).filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
 
@@ -173,6 +182,49 @@ function validateFileContent(filePath, originalName) {
   }
 }
 
+// Кэш статуса файлового хранилища для предотвращения DoS-атак на /api/health
+let cachedStorageHealth = {
+  timestamp: 0,
+  ok: true,
+  error: null
+};
+
+// В тестах проверяем немедленно (TTL = 0), на продакшене кэшируем результат на 5 секунд
+const STORAGE_HEALTH_TTL_MS = process.env.NODE_ENV === 'test' ? 0 : 5000;
+
+function checkStorageHealth(forceFresh = false) {
+  const now = Date.now();
+  if (!forceFresh && (now - cachedStorageHealth.timestamp < STORAGE_HEALTH_TTL_MS)) {
+    return cachedStorageHealth;
+  }
+
+  let ok = true;
+  let error = null;
+  try {
+    fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
+    fs.accessSync(UPLOADS_DIR, fs.constants.R_OK | fs.constants.W_OK);
+    if (!fs.existsSync(DATA_FILE)) {
+      ok = false;
+      error = 'leads.json missing';
+    } else {
+      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+      if (content) {
+        const parsed = JSON.parse(content);
+        if (!Array.isArray(parsed)) {
+          ok = false;
+          error = 'leads.json must contain a JSON array';
+        }
+      }
+    }
+  } catch (err) {
+    ok = false;
+    error = err.message;
+  }
+
+  cachedStorageHealth = { timestamp: now, ok, error };
+  return cachedStorageHealth;
+}
+
 // Атомарное сохранение заявки в leads.json с защитой от повреждения данных
 function saveLead(newLead) {
   let leads = [];
@@ -193,6 +245,9 @@ function saveLead(newLead) {
   const tempFile = `${DATA_FILE}.tmp.${Date.now()}_${randomSuffix}`;
   fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
   fs.renameSync(tempFile, DATA_FILE);
+
+  // Немедленно обновляем кэш здоровья хранилища
+  cachedStorageHealth = { timestamp: Date.now(), ok: true, error: null };
   return true;
 }
 
@@ -558,28 +613,8 @@ async function sendToEmail(lead, file) {
 }
 
 app.get('/api/health', (req, res) => {
-  let storageOk = true;
-  let storageError = null;
-  try {
-    fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
-    fs.accessSync(UPLOADS_DIR, fs.constants.R_OK | fs.constants.W_OK);
-    if (!fs.existsSync(DATA_FILE)) {
-      storageOk = false;
-      storageError = 'leads.json missing';
-    } else {
-      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-      if (content) {
-        const parsed = JSON.parse(content);
-        if (!Array.isArray(parsed)) {
-          storageOk = false;
-          storageError = 'leads.json must contain a JSON array';
-        }
-      }
-    }
-  } catch (err) {
-    storageOk = false;
-    storageError = err.message;
-  }
+  const forceFresh = req.query.fresh === '1';
+  const { ok: storageOk, error: storageError } = checkStorageHealth(forceFresh);
 
   const statusCode = storageOk ? 200 : 503;
   const isTest = process.env.NODE_ENV === 'test';

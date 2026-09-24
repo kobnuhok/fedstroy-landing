@@ -1,8 +1,13 @@
 // Скрипт проверки реальных каналов уведомлений (Telegram Bot API и Yandex SMTP)
-// Запуск без отправки спама (проверка авторизации и подключения):
+// Режимы:
 //   node scripts/live-notification-smoke.js
-// Запуск с реальной отправкой тестового письма / сообщения:
+//     -> строгая проверка наличия учетных данных и соединения (getMe + transporter.verify)
+//     -> при отсутствии ключей или ошибке сети возвращает код 1 (FAIL)
 //   node scripts/live-notification-smoke.js --send
+//     -> реальная отправка тестового письма и Telegram-сообщения
+//     -> при ошибке доставки возвращает код 1 (FAIL)
+//   node scripts/live-notification-smoke.js --allow-unreachable-telegram
+//     -> разрешает игнорировать сетевую недоступность api.telegram.org (для локальных ПК в РФ без VPN)
 
 const fs = require('fs');
 const path = require('path');
@@ -21,7 +26,7 @@ if (fs.existsSync(envPath)) {
     if (eqIdx !== -1) {
       const key = trimmed.slice(0, eqIdx).trim();
       const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
-      if (!process.env[key]) {
+      if (process.env[key] === undefined) {
         process.env[key] = val;
       }
     }
@@ -29,13 +34,17 @@ if (fs.existsSync(envPath)) {
 }
 
 const shouldSend = process.argv.includes('--send');
+const allowUnreachableTelegram = process.argv.includes('--allow-unreachable-telegram');
 
 console.log('\n======================================================');
 console.log('  LIVE SMOKE-ТЕСТ КАНАЛОВ УВЕДОМЛЕНИЙ (Telegram & SMTP)');
 console.log(`  Режим отправки тестового сообщения: ${shouldSend ? 'ВКЛЮЧЕН (--send)' : 'ОТКЛЮЧЕН (только верификация соединения)'}`);
+if (allowUnreachableTelegram) {
+  console.log('  Сетевые сбои Telegram: РАЗРЕШЕНЫ (--allow-unreachable-telegram)');
+}
 console.log('======================================================\n');
 
-// Запрос к Telegram API с поддержкой локального прокси и коротким таймаутом
+// Запрос к Telegram API с поддержкой локального прокси и контролем таймаута
 function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
   return new Promise((resolve) => {
     // 1. Попытка через локальный туннель/прокси
@@ -96,7 +105,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
       req.on('error', (err) => resolve({ ok: false, error: err.message }));
       req.on('timeout', () => {
         req.destroy();
-        resolve({ ok: false, error: 'Таймаут соединения (прямой доступ к api.telegram.org заблокирован провайдером в РФ)' });
+        resolve({ ok: false, error: 'Таймаут соединения с api.telegram.org (блокировка провайдером в РФ)' });
       });
       if (body) req.write(body);
       req.end();
@@ -126,8 +135,8 @@ async function testTelegram() {
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!token) {
-    console.warn('  [WARN] TELEGRAM_BOT_TOKEN не задан в .env — проверка пропущена');
-    return true;
+    console.error('  [FAIL] TELEGRAM_BOT_TOKEN не задан в .env или переменных окружения');
+    return false;
   }
 
   // 1. Проверка валидности токена через getMe
@@ -135,17 +144,25 @@ async function testTelegram() {
   const meResult = await requestTelegram(`/bot${token}/getMe`, 'GET');
 
   if (!meResult.ok || !meResult.data?.ok) {
-    console.warn(`  [WARN] Telegram API недоступен: ${meResult.error || meResult.data?.description}`);
-    console.log('  [NOTE] На локальном ПК в РФ api.telegram.org блокируется провайдерами РКН;');
-    console.log('         На продакшен VPS / Vercel прямая доставка заявок работает в штатном режиме.');
-    return true; // Не валим общий смоук, если заблокирован РКН на локальном ПК
+    const errMsg = meResult.error || meResult.data?.description || 'Неизвестная ошибка';
+    if (allowUnreachableTelegram) {
+      console.warn(`  [WARN] Telegram API недоступен (${errMsg}), но пропущен флагом --allow-unreachable-telegram`);
+      return true;
+    }
+    console.error(`  [FAIL] Ошибка проверки Telegram Bot API: ${errMsg}`);
+    return false;
   }
 
   const botUser = meResult.data.result.username;
   console.log(`  [PASS] Бот авторизован успешно: @${botUser} (ID: ${meResult.data.result.id})`);
 
-  // 2. Если включен флаг --send и задан Chat ID
-  if (shouldSend && chatId) {
+  // 2. Если включен флаг --send
+  if (shouldSend) {
+    if (!chatId) {
+      console.error('  [FAIL] TELEGRAM_CHAT_ID не задан в .env — отправка тестового сообщения невозможна');
+      return false;
+    }
+
     console.log(`  [INFO] Отправка тестового сообщения в чат ${chatId}...`);
     const sendBody = JSON.stringify({
       chat_id: String(chatId).trim(),
@@ -161,7 +178,13 @@ async function testTelegram() {
     if (sendRes.ok && sendRes.data?.ok) {
       console.log(`  [PASS] Тестовое сообщение доставлено в Telegram! Message ID: ${sendRes.data.result.message_id}`);
     } else {
-      console.warn(`  [WARN] Не удалось отправить сообщение в чат ${chatId}: ${sendRes.data?.description || sendRes.error}`);
+      const sendErr = sendRes.data?.description || sendRes.error || 'Ошибка отправки';
+      if (allowUnreachableTelegram) {
+        console.warn(`  [WARN] Ошибка отправки в Telegram (${sendErr}), пропущена флагом --allow-unreachable-telegram`);
+        return true;
+      }
+      console.error(`  [FAIL] Не удалось отправить сообщение в Telegram: ${sendErr}`);
+      return false;
     }
   }
 
@@ -178,8 +201,8 @@ async function testSmtp() {
   const emailTo = process.env.EMAIL_TO || 'kobnuhok@yandex.ru';
 
   if (!user || !pass) {
-    console.warn('  [WARN] SMTP_USER или SMTP_PASS не заданы в .env — проверка SMTP пропущена');
-    return true;
+    console.error('  [FAIL] SMTP_USER или SMTP_PASS не заданы в .env или переменных окружения');
+    return false;
   }
 
   const transporter = nodemailer.createTransport({
