@@ -278,6 +278,24 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.3. Проверка /api/health при сбое хранилища -> 503 degraded', async () => {
+      // Временно удаляем leads.json для симуляции сбоя доступности хранилища
+      if (fs.existsSync(DATA_FILE)) fs.unlinkSync(DATA_FILE);
+
+      try {
+        const res = await fetch(`${BASE_URL}/api/health`);
+        if (res.status !== 503) throw new Error(`Ожидался статус 503 при сбое хранилища, получен ${res.status}`);
+        const json = await res.json();
+        if (json.status !== 'degraded') throw new Error(`Ожидался status 'degraded', получен '${json.status}'`);
+        if (!json.storage || json.storage.ok !== false) {
+          throw new Error(`Ожидался storage.ok === false: ${JSON.stringify(json.storage)}`);
+        }
+      } finally {
+        // Восстанавливаем leads.json
+        fs.writeFileSync(DATA_FILE, '[]\n');
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();
