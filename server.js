@@ -77,8 +77,13 @@ try {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]');
+  fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
+  fs.accessSync(UPLOADS_DIR, fs.constants.R_OK | fs.constants.W_OK);
 } catch (err) {
-  console.warn('[fs:init:warn]', err.message);
+  console.error('[storage:init:fatal] Ошибка инициализации файлового хранилища:', err.message);
+  if (!isVercel && process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 }
 
 // Функция валидации сигнатур содержимого файлов (защита от подмены расширений)
@@ -418,9 +423,28 @@ async function sendToTelegram(lead, file) {
 }
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  let storageOk = true;
+  let storageError = null;
+  try {
+    fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
+    fs.accessSync(UPLOADS_DIR, fs.constants.R_OK | fs.constants.W_OK);
+    if (!fs.existsSync(DATA_FILE)) {
+      storageOk = false;
+      storageError = 'leads.json missing';
+    }
+  } catch (err) {
+    storageOk = false;
+    storageError = err.message;
+  }
+
+  const statusCode = storageOk ? 200 : 503;
+  res.status(statusCode).json({
+    status: storageOk ? 'ok' : 'degraded',
     service: 'ООО «ФЕДСТРОЙ» API',
+    storage: {
+      ok: storageOk,
+      ...(storageError ? { error: storageError } : {})
+    },
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString()
   });
@@ -443,8 +467,20 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const { name, phone, service, area, building, comment, source } = req.body;
+    const { name, phone, agreement, service, area, building, comment, source } = req.body;
     let attachedFile = req.file || null;
+
+    // Валидация согласия на обработку персональных данных (требование 152-ФЗ)
+    const isAgreed = agreement === 'on' || agreement === 'true' || agreement === true || agreement === '1';
+    if (!isAgreed) {
+      if (attachedFile?.path) {
+        try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимо подтвердить согласие на обработку персональных данных.'
+      });
+    }
 
     const phoneClean = (phone || '').replace(/\D/g, '');
     const isValidPhone = (phoneClean.length === 11 && (phoneClean.startsWith('7') || phoneClean.startsWith('8'))) ||

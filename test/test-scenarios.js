@@ -66,6 +66,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Тест 1 байт');
       fd.append('phone', '+7 (916) 111-22-33');
+      fd.append('agreement', 'on');
       const b = new Blob(['A'], { type: 'application/octet-stream' });
       fd.append('attachment', b, 'min.dwg');
 
@@ -79,6 +80,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Тест нормальный');
       fd.append('phone', '+7 (916) 222-33-44');
+      fd.append('agreement', 'on');
       const b = new Blob([Buffer.alloc(100 * 1024, 0x20)], { type: 'application/octet-stream' });
       fd.append('attachment', b, 'drawing_standard.dwg');
 
@@ -90,6 +92,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Тест граница 35МБ');
       fd.append('phone', '+7 (916) 333-44-55');
+      fd.append('agreement', 'on');
       const exactLimit = new Blob([Buffer.alloc(35 * 1024 * 1024, 0x20)], { type: 'application/octet-stream' });
       fd.append('attachment', exactLimit, 'exact_limit.dwg');
 
@@ -101,6 +104,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Тест граница + 1 байт');
       fd.append('phone', '+7 (916) 344-55-66');
+      fd.append('agreement', 'on');
       const overLimit = new Blob([Buffer.alloc(35 * 1024 * 1024 + 1, 0x20)], { type: 'application/octet-stream' });
       fd.append('attachment', overLimit, 'over_limit.dwg');
 
@@ -116,6 +120,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Тест 100МБ');
       fd.append('phone', '+7 (916) 355-66-77');
+      fd.append('agreement', 'on');
       const hugeBlob = new Blob([Buffer.alloc(100 * 1024 * 1024, 0x00)], { type: 'application/octet-stream' });
       fd.append('attachment', hugeBlob, 'huge_model.dwg');
 
@@ -134,6 +139,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Злоумышленник');
       fd.append('phone', '+7 (916) 444-55-66');
+      fd.append('agreement', 'on');
       // Заголовок Windows PE executable: 'MZ' (0x4D, 0x5A)
       const fakeExe = new Blob([Buffer.from([0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00])], { type: 'application/octet-stream' });
       fd.append('attachment', fakeExe, 'trojan.dwg');
@@ -150,6 +156,7 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Тест PDF сигнатуры');
       fd.append('phone', '+7 (916) 555-66-77');
+      fd.append('agreement', 'on');
       const badPdf = new Blob([Buffer.from('НЕ_PDF_ДАННЫЕ_12345')], { type: 'application/pdf' });
       fd.append('attachment', badPdf, 'corrupted.pdf');
 
@@ -169,6 +176,7 @@ async function runAllTests() {
         const fd = new FormData();
         fd.append('name', name);
         fd.append('phone', '+7 (916) 777-88-99');
+        fd.append('agreement', 'on');
         const b = new Blob([Buffer.from(`file content for ${name}`)], { type: 'application/octet-stream' });
         fd.append('attachment', b, 'facade.dwg');
         const r = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
@@ -199,6 +207,7 @@ async function runAllTests() {
       const fdA = new FormData();
       fdA.append('name', 'Клиент До Перезапуска');
       fdA.append('phone', '+7 (916) 100-20-30');
+      fdA.append('agreement', 'on');
       const resA = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fdA });
       const jsonA = await resA.json();
 
@@ -217,6 +226,7 @@ async function runAllTests() {
       const fdB = new FormData();
       fdB.append('name', 'Клиент После Перезапуска');
       fdB.append('phone', '+7 (916) 200-30-40');
+      fdB.append('agreement', 'on');
       const resB = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fdB });
       const jsonB = await resB.json();
 
@@ -234,10 +244,38 @@ async function runAllTests() {
       const fd = new FormData();
       fd.append('name', 'Ноль байт');
       fd.append('phone', '+7 (916) 300-40-50');
+      fd.append('agreement', 'on');
       fd.append('attachment', new Blob([], { type: 'application/octet-stream' }), 'zero.dwg');
 
       const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
       if (res.status !== 400) throw new Error(`HTTP ${res.status}`);
+    });
+
+    // -------------------------------------------------------------
+    // БЛОК 6: Проверка согласия с обработкой ПД (152-ФЗ) и готовности хранилища
+    // -------------------------------------------------------------
+    await testCase('6.1. Согласие с ПД: валидный телефон, но согласие отсутствует -> 400', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Без согласия');
+      fd.append('phone', '+7 (916) 400-50-60');
+      // agreement намеренно не передается
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 400) throw new Error(`Ожидался 400, получен ${res.status}`);
+      const json = await res.json();
+      if (!json.error || !json.error.includes('согласие')) {
+        throw new Error(`Ожидалась ошибка отсутствия согласия: ${json.error}`);
+      }
+    });
+
+    await testCase('6.2. Проверка состояния файлового хранилища в /api/health', async () => {
+      const res = await fetch(`${BASE_URL}/api/health`);
+      if (res.status !== 200) throw new Error(`Ожидался 200, получен ${res.status}`);
+      const json = await res.json();
+      if (json.status !== 'ok') throw new Error(`Ожидался status ok: ${json.status}`);
+      if (!json.storage || json.storage.ok !== true) {
+        throw new Error(`Хранилище не подтверждено: ${JSON.stringify(json.storage)}`);
+      }
     });
 
   } finally {
