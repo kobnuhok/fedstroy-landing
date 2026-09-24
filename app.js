@@ -672,9 +672,61 @@
   // Обработка форм заявок и отправка данных в API.
   
   
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  
   function initForms() {
     const leadModal = document.getElementById('lead-modal');
+    const callbackModal = document.getElementById('callback-modal');
     const modalServiceTitle = document.getElementById('modal-service-title');
+  
+    function resetFormAndClose(form, modal = null) {
+      if (!form) return;
+  
+      // 1. Очищаем все текстовые поля и чекбоксы
+      form.reset();
+  
+      // 2. Скрываем сообщения об ошибках
+      form.querySelectorAll('.error-msg').forEach(el => el.classList.add('hidden'));
+      const errBox = form.querySelector('.js-form-global-error');
+      if (errBox) errBox.classList.add('hidden');
+  
+      // 3. Сбрасываем превью загрузчика файлов
+      const fileInput = form.querySelector('input[type="file"]');
+      if (fileInput) fileInput.value = '';
+      const dropzone = form.querySelector('.js-file-dropzone');
+      if (dropzone) {
+        const promptEl = dropzone.querySelector('.js-dropzone-prompt');
+        const previewEl = dropzone.querySelector('.js-dropzone-preview');
+        const errorEl = dropzone.querySelector('.js-file-error');
+        if (promptEl) promptEl.classList.remove('hidden');
+        if (previewEl) previewEl.classList.add('hidden');
+        if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
+      }
+  
+      // 4. Восстанавливаем кнопку отправки
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+      }
+  
+      // 5. Удаляем экран успеха и возвращаем видимость формы и заголовка
+      const container = form.parentElement;
+      if (container) {
+        container.querySelectorAll('.js-success-view').forEach(el => el.remove());
+        container.querySelectorAll('.js-modal-header').forEach(el => el.classList.remove('hidden'));
+      }
+      form.classList.remove('hidden');
+  
+      // 6. Если это модальное окно — закрываем его и разблокируем скролл страницы
+      if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+    }
   
     if (leadModal) {
       document.querySelectorAll('.js-open-modal').forEach(btn => {
@@ -690,18 +742,48 @@
   
       document.querySelectorAll('.js-close-modal').forEach(btn => {
         btn.addEventListener('click', () => {
-          leadModal.classList.add('hidden');
-          document.body.style.overflow = '';
+          const form = leadModal.querySelector('form.js-lead-form');
+          resetFormAndClose(form, leadModal);
         });
       });
   
       leadModal.addEventListener('click', (e) => {
         if (e.target === leadModal) {
-          leadModal.classList.add('hidden');
-          document.body.style.overflow = '';
+          const form = leadModal.querySelector('form.js-lead-form');
+          resetFormAndClose(form, leadModal);
         }
       });
     }
+  
+    if (callbackModal) {
+      document.querySelectorAll('.js-close-callback').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = callbackModal.querySelector('form.js-lead-form');
+          resetFormAndClose(form, callbackModal);
+        });
+      });
+  
+      callbackModal.addEventListener('click', (e) => {
+        if (e.target === callbackModal) {
+          const form = callbackModal.querySelector('form.js-lead-form');
+          resetFormAndClose(form, callbackModal);
+        }
+      });
+    }
+  
+    // Закрытие модальных окон по Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (leadModal && !leadModal.classList.contains('hidden')) {
+          const form = leadModal.querySelector('form.js-lead-form');
+          resetFormAndClose(form, leadModal);
+        }
+        if (callbackModal && !callbackModal.classList.contains('hidden')) {
+          const form = callbackModal.querySelector('form.js-lead-form');
+          resetFormAndClose(form, callbackModal);
+        }
+      }
+    });
   
     const leadForms = document.querySelectorAll('.js-lead-form');
     leadForms.forEach(form => {
@@ -776,46 +858,67 @@
             throw new Error(result.error || 'Сервер не вернул подтверждение или номер заявки');
           }
   
-          const formContainer = form.closest('.form-container') || form;
-          formContainer.innerHTML = `
-            <div class="p-8 text-center bg-white rounded-3xl border border-slate-200 shadow-xl animate-in fade-in duration-300">
-              <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
-                </svg>
-              </div>
-              <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-1">
-                Заявка принята
-              </span>
-              <h3 class="text-2xl font-bold font-heading text-slate-900 mb-1 js-success-lead-id"></h3>
-              <p class="text-slate-600 mb-5 max-w-md mx-auto text-sm leading-relaxed">
-                Заявка зарегистрирована в системе ООО «ФЕДСТРОЙ». Инженер ПТО получит уведомление и свяжется с вами в рабочее время (пн–пт, 9:00–18:00 МСК).
-              </p>
-              <div class="js-attached-file-badge hidden inline-flex items-center gap-2 text-xs text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl mb-5">
-                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-                <span>Файл ТЗ принят: <strong class="js-attached-file-name"></strong></span>
-              </div>
-              <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs sm:text-sm">
-                <span class="text-slate-500">Срочный вопрос?</span>
-                <a href="tel:+78007000223" class="font-bold text-brand-600 hover:text-brand-700">8 (800) 700-02-23</a>
-                <span class="text-slate-300 hidden sm:inline">•</span>
-                <a href="${CONFIG.TELEGRAM_URL}" target="_blank" rel="noopener noreferrer" class="text-slate-600 hover:text-[#229ED9] font-semibold">Telegram @Lexus2026</a>
-              </div>
-            </div>
-          `;
+          const modal = form.closest('#lead-modal, #callback-modal');
+          const container = form.parentElement;
+          if (container) {
+            container.querySelectorAll('.js-modal-header').forEach(el => el.classList.add('hidden'));
+          }
   
-          const leadIdEl = formContainer.querySelector('.js-success-lead-id');
-          if (leadIdEl) leadIdEl.textContent = `Номер заявки: ${result.leadId}`;
+          // Скрываем форму и восстанавливаем кнопку
+          form.classList.add('hidden');
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+          submitBtn.innerHTML = originalBtnHtml;
   
           const attachedFile = form.querySelector('input[type="file"]')?.files[0];
-          if (attachedFile) {
-            const badge = formContainer.querySelector('.js-attached-file-badge');
-            const nameSpan = formContainer.querySelector('.js-attached-file-name');
-            if (badge && nameSpan) {
-              nameSpan.textContent = attachedFile.name;
-              badge.classList.remove('hidden');
-            }
-          }
+          const attachedFileName = attachedFile ? attachedFile.name : null;
+  
+          // Создаем карточку успеха
+          const successView = document.createElement('div');
+          successView.className = 'js-success-view text-center animate-in fade-in duration-300 relative py-2';
+          successView.innerHTML = `
+            <button type="button" class="js-action-close-success absolute -top-2 right-0 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+  
+            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 mt-2">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-1">
+              Заявка принята
+            </span>
+            <h3 class="text-2xl font-bold font-heading text-slate-900 mb-1 js-success-lead-id">Номер заявки: ${escapeHtml(result.leadId)}</h3>
+            <p class="text-slate-600 mb-5 max-w-md mx-auto text-sm leading-relaxed">
+              Заявка зарегистрирована в системе ООО «ФЕДСТРОЙ». Инженер ПТО получит уведомление и свяжется с вами в рабочее время (пн–пт, 9:00–18:00 МСК).
+            </p>
+            ${attachedFileName ? `
+              <div class="inline-flex items-center gap-2 text-xs text-slate-700 bg-slate-100 px-3.5 py-2 rounded-xl mb-5">
+                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <span>Файл ТЗ принят: <strong>${escapeHtml(attachedFileName)}</strong></span>
+              </div>
+            ` : ''}
+            <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs sm:text-sm mb-4">
+              <span class="text-slate-500">Срочный вопрос?</span>
+              <a href="tel:+78007000223" class="font-bold text-brand-600 hover:text-brand-700">8 (800) 700-02-23</a>
+              <span class="text-slate-300 hidden sm:inline">•</span>
+              <a href="${CONFIG.TELEGRAM_URL}" target="_blank" rel="noopener noreferrer" class="text-slate-600 hover:text-[#229ED9] font-semibold">Telegram @Lexus2026</a>
+            </div>
+  
+            <button type="button" class="js-action-close-success w-full py-3.5 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm uppercase tracking-wider transition-all shadow-md cursor-pointer">
+              ${modal ? 'Закрыть окно' : 'Отправить ещё одну заявку'}
+            </button>
+          `;
+  
+          form.insertAdjacentElement('afterend', successView);
+  
+          // Кнопки закрытия и сброса
+          successView.querySelectorAll('.js-action-close-success').forEach(btn => {
+            btn.addEventListener('click', () => {
+              resetFormAndClose(form, modal);
+            });
+          });
   
         } catch (err) {
           console.error('[forms] Ошибка отправки:', err);
