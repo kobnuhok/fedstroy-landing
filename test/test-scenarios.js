@@ -8,6 +8,8 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const TEST_TMP_DIR = path.join(__dirname, '.tmp');
 const TEST_DATA_DIR = path.join(TEST_TMP_DIR, 'data');
 const TEST_UPLOADS_DIR = path.join(TEST_TMP_DIR, 'uploads');
+process.env.DATA_DIR = TEST_DATA_DIR;
+process.env.UPLOADS_DIR = TEST_UPLOADS_DIR;
 const DATA_FILE = path.join(TEST_DATA_DIR, 'leads.json');
 const UPLOADS_DIR = TEST_UPLOADS_DIR;
 const TEST_PORT = 8991;
@@ -730,13 +732,38 @@ async function runAllTests() {
         }
       };
 
-      // Вызов с onlyDocument: true (как при retry partial с сохраненным telegramMessageId)
+      // 1. Проверка формирования объекта статуса
       const resOnlyDoc = await serverApp.sendToTelegram(leadWithMsgId, testFile, { onlyDocument: true });
       if (resOnlyDoc.messageSkipped !== true) throw new Error('Ожидался messageSkipped === true');
       if (resOnlyDoc.messageSent !== false) throw new Error('Ожидался messageSent === false');
       if (resOnlyDoc.messageId !== 998877) throw new Error(`Ожидался сохраненный messageId === 998877, получено: ${resOnlyDoc.messageId}`);
       if (resOnlyDoc.documentSent !== true) throw new Error('Ожидался documentSent === true');
       if (resOnlyDoc.fullyDelivered !== true) throw new Error('Ожидался fullyDelivered === true');
+
+      // 2. Unit-тест сетевого пайплайна: sendMessage НЕ вызывается вообще, sendDocument вызывается ровно 1 раз
+      const apiCalls = [];
+      const mockRequestTelegram = async (urlPath, method, headers, body) => {
+        apiCalls.push({ urlPath, method });
+        return { ok: true, data: { ok: true, result: { message_id: 12345 } } };
+      };
+
+      await serverApp.sendToTelegram(leadWithMsgId, testFile, {
+        onlyDocument: true,
+        useLiveClient: true,
+        token: 'mock-bot-token',
+        chatId: '-1001234567890',
+        requestTelegram: mockRequestTelegram
+      });
+
+      const sendMessageCount = apiCalls.filter(c => c.urlPath.includes('sendMessage')).length;
+      const sendDocumentCount = apiCalls.filter(c => c.urlPath.includes('sendDocument')).length;
+
+      if (sendMessageCount !== 0) {
+        throw new Error(`sendMessage был вызван ${sendMessageCount} раз(а), ожидалось 0 вызовов (дедупликация нарушена)!`);
+      }
+      if (sendDocumentCount !== 1) {
+        throw new Error(`sendDocument был вызван ${sendDocumentCount} раз(а), ожидался ровно 1 вызов!`);
+      }
     });
 
     await testCase('6.13. Фиксация provider IDs: в notifications сохраняются telegramMessageId, telegramDocSent и emailMessageId', async () => {
@@ -786,6 +813,155 @@ async function runAllTests() {
       }
       if (maxSeenActive !== 2) {
         throw new Error(`Ожидалось достижение максимума в 2 задачи, зафиксировано: ${maxSeenActive}`);
+      }
+    });
+
+    await testCase('6.15. Очистка устаревших метаданных при успешном retry: fileMissing, telegramDocError и emailError удаляются при переходе в sent', async () => {
+      // 1. Создаем физический файл на диске
+      const testFilename = `metadata_cleanup_${Date.now()}.dwg`;
+      fs.writeFileSync(path.join(TEST_UPLOADS_DIR, testFilename), 'fake dwg for metadata cleanup test');
+
+      // 2. Добавляем заявку с устаревшими флагами ошибок в leads.json
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const metadataLeadId = `ФС-TEST-CLEANUP-${Date.now()}`;
+      leads.push({
+        leadId: metadataLeadId,
+        name: 'Клиент Очистка Метаданных',
+        phone: '+7 (916) 999-11-22',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'partial',
+          email: 'failed',
+          telegramDocError: 'Вложение отсутствует на диске сервера',
+          fileMissing: true,
+          emailError: 'SMTP connect ECONNREFUSED',
+          attempts: { telegram: 1, email: 1 },
+          updatedAt: new Date().toISOString()
+        },
+        file: {
+          originalName: 'metadata_test.dwg',
+          filename: testFilename,
+          size: 1024
+        }
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // 3. Запускаем retry
+      const retryRes = await fetch(`${BASE_URL}/api/internal/retry`, { method: 'POST' });
+      if (retryRes.status !== 200) throw new Error(`HTTP ${retryRes.status}`);
+
+      // 4. Проверяем leads.json: статусы стали sent, а флаги ошибок и fileMissing удалены
+      const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const updatedLead = updatedLeads.find(l => l.leadId === metadataLeadId);
+      if (!updatedLead) throw new Error('Заявка не найдена в leads.json');
+      if (updatedLead.notifications.telegram !== 'sent') {
+        throw new Error(`Ожидался telegram === 'sent', получено: ${updatedLead.notifications.telegram}`);
+      }
+      if (updatedLead.notifications.email !== 'sent') {
+        throw new Error(`Ожидался email === 'sent', получено: ${updatedLead.notifications.email}`);
+      }
+      if (updatedLead.notifications.fileMissing !== undefined) {
+        throw new Error(`fileMissing не был удален: ${updatedLead.notifications.fileMissing}`);
+      }
+      if (updatedLead.notifications.telegramDocError !== undefined) {
+        throw new Error(`telegramDocError не был удален: ${updatedLead.notifications.telegramDocError}`);
+      }
+      if (updatedLead.notifications.emailError !== undefined) {
+        throw new Error(`emailError не был удален: ${updatedLead.notifications.emailError}`);
+      }
+    });
+
+    await testCase('6.16. Ограничение очереди уведомлений (Backpressure): при переполнении очереди задачи отклоняются с кодом QUEUE_OVERFLOW', async () => {
+      const serverApp = require('../server');
+      const maxQueue = serverApp.MAX_NOTIFICATION_QUEUE || 50;
+
+      // Заполняем слоты семафора долгоиграющими задачами
+      let releaseHold = null;
+      const holdPromise = new Promise(resolve => { releaseHold = resolve; });
+
+      // Запускаем 2 задачи, которые занимают MAX_CONCURRENT_NOTIFICATIONS
+      serverApp.runWithNotificationQueue(() => holdPromise);
+      serverApp.runWithNotificationQueue(() => holdPromise);
+
+      // Заполняем очередь ровно до maxQueue
+      for (let i = 0; i < maxQueue; i++) {
+        serverApp.runWithNotificationQueue(() => holdPromise);
+      }
+
+      // Следующая задача должна быть немедленно отклонена с ошибкой QUEUE_OVERFLOW
+      let rejectedError = null;
+      try {
+        await serverApp.runWithNotificationQueue(async () => {});
+      } catch (err) {
+        rejectedError = err;
+      }
+
+      // Освобождаем зависшие задачи
+      releaseHold();
+
+      if (!rejectedError) {
+        throw new Error('Задача не была отклонена при переполнении очереди!');
+      }
+      if (rejectedError.code !== 'QUEUE_OVERFLOW') {
+        throw new Error(`Ожидался код ошибки QUEUE_OVERFLOW, получено: ${rejectedError.code} (${rejectedError.message})`);
+      }
+    });
+
+    await testCase('6.17. Устойчивость к сбою записи статуса: буфер unpersistedNotificationPatches сохраняет статус и синхронизирует его при восстановлении', async () => {
+      const serverApp = require('../server');
+      const testLeadId = `ФС-TEST-UNPERSISTED-${Date.now()}`;
+
+      // Сначала создаем заявку на диске со статусом pending
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      leads.push({
+        leadId: testLeadId,
+        name: 'Клиент Сбой Диска',
+        phone: '+7 (916) 000-11-22',
+        source: 'Тест',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        },
+        file: null
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // Имитируем сбой записи: ставим патч в in-memory буфер unpersistedNotificationPatches
+      serverApp.enqueueUnpersistedNotificationPatch(testLeadId, {
+        telegram: 'sent',
+        email: 'sent',
+        telegramMessageId: 888111,
+        emailMessageId: 'smtp-ok-123'
+      });
+
+      if (!serverApp.unpersistedNotificationPatches.has(testLeadId)) {
+        throw new Error('Патч не сохранен в unpersistedNotificationPatches');
+      }
+
+      // Проверяем, что retryPendingNotifications учитывает in-memory статус и НЕ считает заявку требующей retry
+      const pendingPatch = serverApp.unpersistedNotificationPatches.get(testLeadId);
+      const effective = { ...leads.find(l => l.leadId === testLeadId).notifications, ...pendingPatch };
+      if (serverApp.shouldRetryTelegram(effective) || serverApp.shouldRetryEmail(effective)) {
+        throw new Error('Заявка ошибочно помечена к повторной отправке, хотя в in-memory буфере уже зафиксирован sent!');
+      }
+
+      // Вызываем flushUnpersistedNotificationPatches() и проверяем синхронизацию на диск
+      serverApp.flushUnpersistedNotificationPatches();
+      if (serverApp.unpersistedNotificationPatches.has(testLeadId)) {
+        throw new Error('Патч остался в буфере после успешного flush');
+      }
+
+      const flushedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const flushedLead = flushedLeads.find(l => l.leadId === testLeadId);
+      if (flushedLead.notifications.telegram !== 'sent' || flushedLead.notifications.email !== 'sent') {
+        throw new Error(`Статус не был записан на диск: ${JSON.stringify(flushedLead.notifications)}`);
+      }
+      if (flushedLead.notifications.telegramMessageId !== 888111) {
+        throw new Error('telegramMessageId не был записан на диск');
       }
     });
 
