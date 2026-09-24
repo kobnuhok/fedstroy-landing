@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 8080;
 const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/kobnuhok\.github\.io$/,
   /^https:\/\/(www\.)?ooofedstroy\.ru$/,
+  /^https:\/\/([a-zA-Z0-9-]+\.)?vercel\.app$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 ];
 
@@ -32,12 +33,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const DATA_FILE = path.join(__dirname, 'data', 'leads.json');
+const isVercel = !!process.env.VERCEL;
+const UPLOADS_DIR = isVercel ? path.join('/tmp', 'uploads') : path.join(__dirname, 'uploads');
+const DATA_DIR = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'leads.json');
 
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-if (!fs.existsSync(path.dirname(DATA_FILE))) fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]');
+} catch (err) {
+  console.warn('[fs:init:warn]', err.message);
+}
 
 // Функция валидации сигнатур содержимого файлов (защита от подмены расширений)
 function validateFileContent(filePath, originalName) {
@@ -92,19 +99,23 @@ function validateFileContent(filePath, originalName) {
 
 // Атомарное сохранение заявки в leads.json
 function saveLead(newLead) {
-  let leads = [];
-  if (fs.existsSync(DATA_FILE)) {
-    const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-    if (content) {
-      // Если файл повреждён — бросаем ошибку, не перезаписываем данные
-      leads = JSON.parse(content);
+  try {
+    let leads = [];
+    if (fs.existsSync(DATA_FILE)) {
+      const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
+      if (content) {
+        // Если файл повреждён — не перезаписываем данные
+        leads = JSON.parse(content);
+      }
     }
-  }
 
-  leads.unshift(newLead);
-  const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
-  fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
-  fs.renameSync(tempFile, DATA_FILE);
+    leads.unshift(newLead);
+    const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
+    fs.renameSync(tempFile, DATA_FILE);
+  } catch (err) {
+    console.warn('[fs:saveLead:warn]', err.message);
+  }
 }
 
 // Настройка хранилища Multer с защитой от коллизий имен файлов
@@ -141,9 +152,34 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Запрос к Telegram API: поддержка локального туннеля (обход блокировок на ПК в РФ) + прямой запрос на VPS
+// Запрос к Telegram API: прямая отправка на Vercel/VPS + поддержка локального туннеля (обход блокировок на ПК в РФ)
 function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
   return new Promise((resolve, reject) => {
+    // В облаке Vercel нет блокировок Telegram API — отправляем напрямую без задержек
+    if (process.env.VERCEL) {
+      const req = https.request({
+        host: 'api.telegram.org',
+        path: apiPath,
+        method: method,
+        headers: headers,
+        timeout: 10000
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, data: JSON.parse(raw) });
+          } catch {
+            resolve({ ok: false, data: { description: raw } });
+          }
+        });
+      });
+      req.on('error', reject);
+      if (body) req.write(body);
+      req.end();
+      return;
+    }
+
     const proxyReq = http.request({
       host: '127.0.0.1',
       port: 10808,
