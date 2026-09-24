@@ -290,16 +290,37 @@ async function sendToTelegram(lead, file) {
       `⏰ ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)`
     ].filter(Boolean).join('\n');
 
-    const msgBody = JSON.stringify({
-      chat_id: chatId,
+    let targetChatId = String(chatId).trim();
+    let msgBody = JSON.stringify({
+      chat_id: targetChatId,
       text,
       parse_mode: 'HTML'
     });
 
-    const msgRes = await requestTelegram(`/bot${token}/sendMessage`, 'POST', {
+    let msgRes = await requestTelegram(`/bot${token}/sendMessage`, 'POST', {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(msgBody)
     }, msgBody);
+
+    // Если чат не найден и ID был без минуса — автоматически пробуем как группу с минусом
+    if ((!msgRes.ok || !msgRes.data?.ok) && msgRes.data?.description?.includes('chat not found') && !targetChatId.startsWith('-')) {
+      const groupChatId = `-${targetChatId}`;
+      console.log(`[telegram:fallback] Попытка отправки в группу: ${groupChatId}`);
+      const retryBody = JSON.stringify({
+        chat_id: groupChatId,
+        text,
+        parse_mode: 'HTML'
+      });
+      const retryRes = await requestTelegram(`/bot${token}/sendMessage`, 'POST', {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(retryBody)
+      }, retryBody);
+
+      if (retryRes.ok && retryRes.data?.ok) {
+        msgRes = retryRes;
+        targetChatId = groupChatId;
+      }
+    }
 
     if (!msgRes.ok || !msgRes.data?.ok) {
       console.error('[telegram:notify:error] Ошибка Telegram API:', msgRes.data?.description);
@@ -317,7 +338,7 @@ async function sendToTelegram(lead, file) {
       const caption = `ТЗ к заявке ${lead.leadId} от ${lead.name || lead.phone}`;
 
       const formBuffers = [
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${chatId}\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${targetChatId}\r\n`),
         Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`),
         Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="document"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
         fileData,
