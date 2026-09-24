@@ -214,6 +214,7 @@ async function testSmtp() {
 
   try {
     console.log(`  [INFO] Подключение к ${host}:${port} (TLS: ${secure}, логин: ${user})...`);
+    console.log(`  [INFO] Политика вложений: файлы до 20 МБ передаются вложением в письмо (лимит Яндекса 30 МБ с учетом MIME); файлы > 20 МБ отправляются в Telegram и сохраняются на сервере.`);
     await transporter.verify();
     console.log(`  [PASS] SMTP-сервер подтвердил подлинность учетных данных (transporter.verify: OK)`);
 

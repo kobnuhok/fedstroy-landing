@@ -434,6 +434,40 @@ async function runAllTests() {
       if (!leadJson.email || leadJson.email.sent !== true || leadJson.email.recipient !== 'kobnuhok@yandex.ru') {
         throw new Error(`Ожидалось успешное дублирование на email: ${JSON.stringify(leadJson.email)}`);
       }
+      if (leadJson.email.attached !== true) {
+        throw new Error(`Ожидалось прикрепление файла <= 20 МБ: ${JSON.stringify(leadJson.email)}`);
+      }
+    });
+
+    await testCase('6.4b. Политика размера вложений: файл 25 МБ принимается сервером, но опускается в email (лимит Яндекс 30 МБ)', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест Большого Файла 25МБ');
+      fd.append('phone', '+7 (916) 777-88-99');
+      fd.append('agreement', 'on');
+      // 25 МБ чертеж: допустим для сервера (< 35 МБ), но больше email-лимита (20 МБ)
+      const bigBlob = new Blob([Buffer.alloc(25 * 1024 * 1024, 0x00)], { type: 'application/octet-stream' });
+      fd.append('attachment', bigBlob, 'large_facade_model.dwg');
+
+      const leadRes = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (leadRes.status !== 200) throw new Error(`Ожидался 200 для 25 МБ файла, получен ${leadRes.status}`);
+      const leadJson = await leadRes.json();
+      if (!leadJson.email || leadJson.email.sent !== true) {
+        throw new Error(`Ожидалась успешная отправка email без вложения: ${JSON.stringify(leadJson.email)}`);
+      }
+      if (leadJson.email.attached !== false) {
+        throw new Error(`Вложение 25 МБ не должно прикрепляться к email: ${JSON.stringify(leadJson.email)}`);
+      }
+      if (leadJson.email.oversized !== true) {
+        throw new Error(`Ожидался флаг oversized === true: ${JSON.stringify(leadJson.email)}`);
+      }
+
+      // Проверяем, что заявка сохранена в leads.json
+      const leads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      const savedLead = leads.find(l => l.leadId === leadJson.leadId);
+      if (!savedLead) throw new Error(`Заявка ${leadJson.leadId} не найдена в leads.json`);
+      if (savedLead.file.size !== 25 * 1024 * 1024) {
+        throw new Error(`Неверный размер сохраненного файла: ${savedLead.file.size}`);
+      }
     });
 
     await testCase('6.5. Защита от утечки данных: запрет прямого доступа к data/, uploads/ и служебным файлам', async () => {

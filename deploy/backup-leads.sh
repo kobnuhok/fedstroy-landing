@@ -40,14 +40,42 @@ else
 fi
 
 # 2. Резервное копирование постоянных вложений (чертежей / ТЗ)
+# Защита от переполнения диска: вместо ежедневного дублирования многогигабайтного каталога:
+# 2.1. Зеркалирование актуального каталога uploads в ${BACKUP_DIR}/uploads/mirror/
+# 2.2. Еженедельный полный срез по воскресеньям (DOW=7)
+# 2.3. Ежедневный инкрементальный архив только новых/измененных файлов за последние 24 часа
 UPLOADS_DIR="${APP_DIR}/uploads"
+UPLOADS_MIRROR="${BACKUP_DIR}/uploads/mirror"
+mkdir -p "${UPLOADS_MIRROR}"
+chmod 700 "${UPLOADS_MIRROR}"
+
 if [[ -d "${UPLOADS_DIR}" && -n "$(ls -A "${UPLOADS_DIR}" 2>/dev/null)" ]]; then
-    tar -czf "${BACKUP_DIR}/uploads/uploads_${DATE_TAG}.tar.gz" -C "${APP_DIR}" uploads/
-    chmod 600 "${BACKUP_DIR}/uploads/uploads_${DATE_TAG}.tar.gz"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Архив вложений создан: uploads_${DATE_TAG}.tar.gz"
+    # Синхронизация зеркала
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "${UPLOADS_DIR}/" "${UPLOADS_MIRROR}/"
+    else
+        cp -ru "${UPLOADS_DIR}/"* "${UPLOADS_MIRROR}/" 2>/dev/null || true
+    fi
+
+    DOW=$(date +%u)
+    if [[ "${DOW}" -eq 7 ]]; then
+        tar -czf "${BACKUP_DIR}/uploads/uploads_full_${DATE_TAG}.tar.gz" -C "${UPLOADS_MIRROR}" .
+        chmod 600 "${BACKUP_DIR}/uploads/uploads_full_${DATE_TAG}.tar.gz"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Еженедельный полный архив вложений создан: uploads_full_${DATE_TAG}.tar.gz"
+    else
+        # Архивируем только файлы, измененные за последние 24 часа
+        NEW_FILES=$(cd "${APP_DIR}" && find uploads/ -type f -mtime -1 2>/dev/null || true)
+        if [[ -n "${NEW_FILES}" ]]; then
+            tar -czf "${BACKUP_DIR}/uploads/uploads_incr_${DATE_TAG}.tar.gz" -C "${APP_DIR}" ${NEW_FILES}
+            chmod 600 "${BACKUP_DIR}/uploads/uploads_incr_${DATE_TAG}.tar.gz"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ежедневный инкрементальный архив новых файлов создан: uploads_incr_${DATE_TAG}.tar.gz"
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Новых вложений за 24ч не обнаружено (зеркало актуализировано)."
+        fi
+    fi
 fi
 
-# 3. Ротация устаревших копий (удаление старше $RETENTION_DAYS дней)
+# 3. Ротация устаревших копий (удаление архивов старше $RETENTION_DAYS дней)
 find "${BACKUP_DIR}/leads" -type f -mtime +"${RETENTION_DAYS}" -delete
-find "${BACKUP_DIR}/uploads" -type f -mtime +"${RETENTION_DAYS}" -delete
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ротация завершена: файлы старше ${RETENTION_DAYS} дней удалены."
+find "${BACKUP_DIR}/uploads" -name "*.tar.gz" -type f -mtime +"${RETENTION_DAYS}" -delete
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ротация завершена: архивы старше ${RETENTION_DAYS} дней удалены."

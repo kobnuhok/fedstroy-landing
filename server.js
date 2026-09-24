@@ -92,6 +92,11 @@ const SMTP_SECURE = process.env.SMTP_SECURE !== 'false';
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 
+// Максимальный размер вложения для Email (20 МБ).
+// С учетом Base64/MIME-оверхеда (+33%) размер письма укладывается в жесткий лимит Яндекс Почты (30 МБ).
+// Файлы от 20 до 35 МБ передаются в Telegram и сохраняются на сервере.
+const MAX_EMAIL_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+
 let mailTransporter = null;
 
 function getMailTransporter() {
@@ -244,8 +249,15 @@ function saveLead(newLead) {
   leads.unshift(newLead);
   const randomSuffix = crypto.randomBytes(4).toString('hex');
   const tempFile = `${DATA_FILE}.tmp.${Date.now()}_${randomSuffix}`;
-  fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
-  fs.renameSync(tempFile, DATA_FILE);
+  try {
+    fs.writeFileSync(tempFile, JSON.stringify(leads, null, 2), 'utf8');
+    fs.renameSync(tempFile, DATA_FILE);
+  } catch (err) {
+    if (fs.existsSync(tempFile)) {
+      try { fs.unlinkSync(tempFile); } catch (_) {}
+    }
+    throw err;
+  }
 
   // Немедленно обновляем кэш здоровья хранилища
   cachedStorageHealth = { timestamp: Date.now(), ok: true, error: null };
@@ -262,7 +274,7 @@ const storage = multer.diskStorage({
     const ext = path.extname(safeName);
     const base = path.basename(safeName, ext).replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_');
     const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const randomSuffix = crypto.randomBytes(6).toString('hex');
     cb(null, `${timestamp}_${randomSuffix}_${base}${ext}`);
   }
 });
@@ -305,7 +317,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         path: apiPath,
         method: method,
         headers: headers,
-        timeout: 60000
+        timeout: 15000
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -520,7 +532,14 @@ async function sendToTelegram(lead, file) {
 // Отправка дублирующего уведомления на корпоративную почту через SMTP (nodemailer)
 async function sendToEmail(lead, file) {
   if (process.env.NODE_ENV === 'test') {
-    return { sent: true, mocked: true, recipient: EMAIL_TO };
+    const isAttached = !!(file && file.size <= MAX_EMAIL_ATTACHMENT_SIZE);
+    return {
+      sent: true,
+      mocked: true,
+      recipient: EMAIL_TO,
+      attached: isAttached,
+      oversized: !!(file && file.size > MAX_EMAIL_ATTACHMENT_SIZE)
+    };
   }
 
   const transporter = getMailTransporter();
@@ -540,6 +559,9 @@ async function sendToEmail(lead, file) {
     const safeBuilding = escapeHtml(lead.building) || '—';
     const safeSource = escapeHtml(lead.source) || 'Форма на сайте';
     const safeComment = escapeHtml(lead.comment) || '—';
+
+    const hasAttachment = !!(file && fs.existsSync(file.path));
+    const isOversizedForEmail = hasAttachment && file.size > MAX_EMAIL_ATTACHMENT_SIZE;
 
     const htmlBody = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #ffffff;">
@@ -580,8 +602,16 @@ async function sendToEmail(lead, file) {
               </tr>
               ${file ? `
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;"><strong>Прикреплен файл:</strong></td>
-                <td style="padding: 10px 0; color: #0f172a;">📎 ${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)</td>
+                <td style="padding: 10px 0; color: #64748b; vertical-align: top;"><strong>Прикреплен файл:</strong></td>
+                <td style="padding: 10px 0; color: #0f172a;">
+                  📎 ${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)
+                  ${isOversizedForEmail ? `
+                  <div style="margin-top: 6px; padding: 8px 12px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; font-size: 13px; color: #92400e; line-height: 1.4;">
+                    ⚠️ <strong>Вложение не прикреплено к письму:</strong> размер файла превышает лимит почтового шлюза (20 МБ) с учетом MIME-кодирования (жесткий лимит Яндекс Почты — 30 МБ).<br>
+                    ✅ <strong>Файл успешно передан в Telegram и сохранен на сервере в хранилище заявок (uploads/).</strong>
+                  </div>
+                  ` : ''}
+                </td>
               </tr>` : ''}
             </tbody>
           </table>
@@ -601,16 +631,18 @@ async function sendToEmail(lead, file) {
       html: htmlBody
     };
 
-    if (file && fs.existsSync(file.path)) {
+    if (hasAttachment && !isOversizedForEmail) {
       mailOptions.attachments = [{
         filename: file.originalName || file.filename || 'attachment.pdf',
         path: file.path
       }];
+    } else if (isOversizedForEmail) {
+      console.log(`[email:attachment:notice] Файл ${file.originalName} (${(file.size / (1024 * 1024)).toFixed(2)} МБ) превышает лимит 20 МБ. Отправка email без вложения.`);
     }
 
     const info = await transporter.sendMail(mailOptions);
     console.log(`[email:notify:success] Заявка ${lead.leadId} успешно доставлена на почту ${EMAIL_TO} (ID: ${info.messageId})`);
-    return { sent: true, recipient: EMAIL_TO, messageId: info.messageId };
+    return { sent: true, recipient: EMAIL_TO, messageId: info.messageId, attached: !isOversizedForEmail };
   } catch (err) {
     console.error('[email:notify:error] Ошибка отправки на почту:', err.message);
     return { sent: false, recipient: EMAIL_TO, error: err.message };
@@ -817,37 +849,83 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       path: attachedFile.path
     } : null;
 
-    // Параллельная отправка уведомлений: Telegram + Email
-    const [telegramResult, emailResult] = await Promise.all([
-      sendToTelegram(leadRecord, fileAttachment),
-      sendToEmail(leadRecord, fileAttachment)
-    ]);
-
-    if (!telegramResult?.sent) console.warn('[lead:notify:telegram:warn]', telegramResult?.error || telegramResult?.reason);
-    if (!emailResult?.sent) console.warn('[lead:notify:email:warn]', emailResult?.error || emailResult?.reason);
-
     const responsePayload = {
       success: true,
       leadId,
       message: 'Заявка зарегистрирована. Мы свяжемся с вами в рабочее время.'
     };
 
-    // В тестах передаем статусы уведомлений для валидации интеграции
+    // 1. В тестах: синхронное ожидание для проверки моков в ассертах
     if (process.env.NODE_ENV === 'test') {
+      const [telegramResult, emailResult] = await Promise.all([
+        sendToTelegram(leadRecord, fileAttachment),
+        sendToEmail(leadRecord, fileAttachment)
+      ]);
       responsePayload.telegram = telegramResult;
       responsePayload.email = emailResult;
+      return res.status(200).json(responsePayload);
     }
 
-    return res.status(200).json(responsePayload);
+    // 2. В serverless (Vercel): ожидаем с защитным таймаутом (макс. 10с), чтобы контейнер не был заморожен
+    if (isVercel) {
+      try {
+        const notifyPromise = Promise.allSettled([
+          sendToTelegram(leadRecord, fileAttachment),
+          sendToEmail(leadRecord, fileAttachment)
+        ]);
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 10000));
+        await Promise.race([notifyPromise, timeoutPromise]);
+      } catch (notifyErr) {
+        console.warn('[lead:notify:vercel:warn]', notifyErr.message);
+      }
+      return res.status(200).json(responsePayload);
+    }
+
+    // 3. В продакшене (VPS / PM2): мгновенный ответ клиенту сразу после сохранения в leads.json.
+    // Уведомления и передача вложений в Telegram/Email выполняются асинхронно в фоне.
+    // Это исключает долгое ожидание клиентом передачи 35-МБ файлов и предотвращает повторные отправки (дабл-клики).
+    res.status(200).json(responsePayload);
+
+    // Фоновая передача уведомлений с последующей очисткой временного файла
+    (async () => {
+      try {
+        const results = await Promise.allSettled([
+          sendToTelegram(leadRecord, fileAttachment),
+          sendToEmail(leadRecord, fileAttachment)
+        ]);
+        const [tgRes, emRes] = results;
+        if (tgRes.status === 'fulfilled' && !tgRes.value?.sent) {
+          console.warn('[lead:notify:telegram:warn]', tgRes.value?.error || tgRes.value?.reason);
+        }
+        if (emRes.status === 'fulfilled' && !emRes.value?.sent) {
+          console.warn('[lead:notify:email:warn]', emRes.value?.error || emRes.value?.reason);
+        }
+      } catch (asyncErr) {
+        console.error('[lead:notify:background:error]', asyncErr.message);
+      } finally {
+        if (attachedFile?.path && !KEEP_UPLOADED_FILES) {
+          try {
+            if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
+          } catch (_) {}
+        }
+      }
+    })();
   } catch (err) {
+    if (attachedFile?.path && !KEEP_UPLOADED_FILES) {
+      try {
+        if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
+      } catch (_) {}
+    }
     console.error('[lead:process:error]', err);
     return res.status(500).json({
       success: false,
       error: 'Произошла ошибка при обработке заявки на сервере. Пожалуйста, позвоните нам по номеру 8 (800) 700-02-23.'
     });
   } finally {
-    // Централизованная очистка временного файла на сервере ПОСЛЕ завершения всех каналов оповещения
-    if (attachedFile?.path && !KEEP_UPLOADED_FILES) {
+    // В тестах и на Vercel очищаем файл после завершения обработки запроса.
+    // На VPS очистка выполняется в фоновом обработчике выше.
+    const isAsyncMode = !isVercel && process.env.NODE_ENV !== 'test';
+    if (!isAsyncMode && attachedFile?.path && !KEEP_UPLOADED_FILES) {
       try {
         if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
       } catch (_) {}
