@@ -7,6 +7,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const http = require('http');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -134,54 +136,165 @@ const upload = multer({
   }
 });
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Запрос к Telegram API: поддержка локального туннеля (обход блокировок на ПК в РФ) + прямой запрос на VPS
+function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
+  return new Promise((resolve, reject) => {
+    const proxyReq = http.request({
+      host: '127.0.0.1',
+      port: 10808,
+      method: 'CONNECT',
+      path: 'api.telegram.org:443',
+      timeout: 1500
+    });
+
+    let finished = false;
+
+    function sendThroughSocket(socket) {
+      const req = https.request({
+        host: 'api.telegram.org',
+        path: apiPath,
+        method: method,
+        headers: headers,
+        socket: socket,
+        agent: false
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, data: JSON.parse(raw) });
+          } catch {
+            resolve({ ok: false, data: { description: raw } });
+          }
+        });
+      });
+      req.on('error', reject);
+      if (body) req.write(body);
+      req.end();
+    }
+
+    function fallbackDirect() {
+      if (finished) return;
+      finished = true;
+      const req = https.request({
+        host: 'api.telegram.org',
+        path: apiPath,
+        method: method,
+        headers: headers,
+        timeout: 10000
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => raw += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, data: JSON.parse(raw) });
+          } catch {
+            resolve({ ok: false, data: { description: raw } });
+          }
+        });
+      });
+      req.on('error', reject);
+      if (body) req.write(body);
+      req.end();
+    }
+
+    proxyReq.on('connect', (res, socket) => {
+      if (res.statusCode === 200) {
+        finished = true;
+        sendThroughSocket(socket);
+      } else {
+        fallbackDirect();
+      }
+    });
+
+    proxyReq.on('error', () => fallbackDirect());
+    proxyReq.on('timeout', () => {
+      proxyReq.destroy();
+      fallbackDirect();
+    });
+    proxyReq.end();
+  });
+}
+
 // Отправка уведомления в Telegram (при наличии токена и ID чата в .env)
 async function sendToTelegram(lead, file) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+
+  if (!token || !chatId) {
+    console.log('[telegram:skip] Токен или Chat ID не заданы в .env — уведомление пропущено');
+    return;
+  }
+
+  console.log(`[telegram:start] Отправка уведомления для заявки ${lead.leadId} в чат ${chatId}...`);
 
   try {
     const text = [
-      `🏗 *Новая заявка с сайта ООО «ФЕДСТРОЙ»*`,
+      `<b>🏗 Новая заявка с сайта ООО «ФЕДСТРОЙ»</b>`,
       `━━━━━━━━━━━━━━━━━━━━`,
-      `📋 *Номер расчетного листа:* \`${lead.leadId}\``,
-      `👤 *Клиент:* ${lead.name || 'Не указано'}`,
-      `📞 *Телефон:* ${lead.phone}`,
-      lead.service ? `⚙️ *Услуга:* ${lead.service}` : null,
-      lead.area ? `📐 *Площадь:* ${lead.area} м²` : null,
-      lead.building ? `🏢 *Тип объекта:* ${lead.building}` : null,
-      lead.source ? `📌 *Источник:* ${lead.source}` : null,
-      lead.comment ? `💬 *Комментарий:* ${lead.comment}` : null,
-      file ? `📎 *Прикреплен файл ТЗ:* ${file.originalName} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : null,
+      `<b>📋 Номер расчетного листа:</b> <code>${lead.leadId}</code>`,
+      `<b>👤 Клиент:</b> ${escapeHtml(lead.name) || 'Не указано'}`,
+      `<b>📞 Телефон:</b> ${escapeHtml(lead.phone)}`,
+      lead.service ? `<b>⚙️ Услуга:</b> ${escapeHtml(lead.service)}` : null,
+      lead.area ? `<b>📐 Площадь:</b> ${escapeHtml(lead.area)} м²` : null,
+      lead.building ? `<b>🏢 Тип объекта:</b> ${escapeHtml(lead.building)}` : null,
+      lead.source ? `<b>📌 Источник:</b> ${escapeHtml(lead.source)}` : null,
+      lead.comment ? `<b>💬 Комментарий:</b> ${escapeHtml(lead.comment)}` : null,
+      file ? `<b>📎 Прикреплен файл ТЗ:</b> ${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : null,
       `━━━━━━━━━━━━━━━━━━━━`,
       `⏰ ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)`
     ].filter(Boolean).join('\n');
 
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'Markdown'
-      })
+    const msgBody = JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML'
     });
+
+    const msgRes = await requestTelegram(`/bot${token}/sendMessage`, 'POST', {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(msgBody)
+    }, msgBody);
+
+    if (!msgRes.ok || !msgRes.data?.ok) {
+      console.error('[telegram:notify:error] Ошибка Telegram API:', msgRes.data?.description);
+    } else {
+      console.log(`[telegram:notify:success] Заявка ${lead.leadId} успешно доставлена в Telegram! (message_id: ${msgRes.data.result?.message_id})`);
+    }
 
     if (file && fs.existsSync(file.path)) {
       const fileData = fs.readFileSync(file.path);
-      const blob = new Blob([fileData]);
-      const formData = new FormData();
-      formData.append('chat_id', chatId);
-      formData.append('document', blob, Buffer.from(file.originalName, 'latin1').toString('utf8'));
-      formData.append('caption', `ТЗ к заявке ${lead.leadId} от ${lead.name || lead.phone}`);
+      const boundary = '----WebKitFormBoundary' + Math.random().toString(36).slice(2);
+      const filename = Buffer.from(file.originalName, 'latin1').toString('utf8');
+      const caption = `ТЗ к заявке ${lead.leadId} от ${lead.name || lead.phone}`;
 
-      await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-        method: 'POST',
-        body: formData
-      });
+      const formBuffers = [
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${chatId}\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="document"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
+        fileData,
+        Buffer.from(`\r\n--${boundary}--\r\n`)
+      ];
+      const docBody = Buffer.concat(formBuffers);
+
+      const docRes = await requestTelegram(`/bot${token}/sendDocument`, 'POST', {
+        'Content-Type': 'multipart/form-data; boundary=' + boundary,
+        'Content-Length': docBody.length
+      }, docBody);
+
+      if (!docRes.ok || !docRes.data?.ok) {
+        console.error('[telegram:document:error] Ошибка отправки документа:', docRes.data?.description);
+      } else {
+        console.log(`[telegram:document:success] Файл ${file.originalName} успешно доставлен в Telegram!`);
+      }
     }
   } catch (err) {
-    console.error('[telegram:notify:error]', err.message);
+    console.error('[telegram:notify:error] Сетевая ошибка при отправке в Telegram:', err.message);
   }
 }
 
