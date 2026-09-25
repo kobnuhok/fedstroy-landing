@@ -1967,6 +1967,41 @@ async function runAllTests() {
         throw new Error('Ожидалась блокировка записи после завершения и снятия claim');
       }
 
+      // 2.1. Проверка истекшего lease: совпадение токена при expired lease отклоняется
+      cleanTestData();
+      const expiredFencingLead = {
+        leadId: 'ФС-FENCING-EXPIRED',
+        name: 'Тест Истекшего Fencing Lease',
+        phone: '+7 (999) 555-66-77',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          claim: {
+            token: 'worker-token-expired',
+            expiresAt: Date.now() - 1 // лиз истек
+          },
+          updatedAt: new Date().toISOString()
+        }
+      };
+      fs.writeFileSync(DATA_FILE, JSON.stringify([expiredFencingLead], null, 2), 'utf8');
+
+      const expiredRes = serverApp.updateLeadNotificationStatus('ФС-FENCING-EXPIRED', {
+        telegram: 'sent',
+        expectedClaimToken: 'worker-token-expired'
+      });
+      if (expiredRes !== false) {
+        throw new Error('Ожидался отказ (false) при обновлении статуса по истекшему lease claim');
+      }
+      if (serverApp.updateLeadNotificationStatus.lastFailureReason !== 'fenced') {
+        throw new Error(`Ожидался lastFailureReason === 'fenced' для истекшего lease, получено: ${serverApp.updateLeadNotificationStatus.lastFailureReason}`);
+      }
+      const afterExpiredLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      if (afterExpiredLeads[0].notifications.telegram !== 'pending') {
+        throw new Error('Статус заявки был ошибочно перезаписан по истекшему lease claim!');
+      }
+
       // 3. Бизнес-валидация поля площади (area)
       // 3.1. Превышение длины > 32 символов
       const tooLongArea = '1'.repeat(33);

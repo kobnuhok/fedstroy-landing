@@ -499,11 +499,14 @@ function updateLeadNotificationStatus(leadId, patch, maxRetries = 3) {
 
       const prevNotif = lead.notifications || {};
 
-      // Fencing token check: защита от гонки и перезаписи статуса устаревшим воркером
+      // Fencing token check: защита от гонки и перезаписи статуса устаревшим воркером или по истекшему лизу
       if (patch.expectedClaimToken !== undefined) {
-        const currentClaimToken = prevNotif.claim?.token;
-        if (currentClaimToken !== patch.expectedClaimToken) {
-          console.warn(`[lead:claim:fenced] Заявка ${leadId}: отказ в обновлении статуса. Токен claim не совпадает (актуальный: ${currentClaimToken || 'нет'}, ожидался: ${patch.expectedClaimToken})`);
+        const currentClaim = prevNotif.claim;
+        const currentClaimToken = currentClaim?.token;
+        const isClaimExpired = currentClaim?.expiresAt !== undefined && Number(currentClaim.expiresAt) <= Date.now();
+
+        if (!currentClaimToken || isClaimExpired || currentClaimToken !== patch.expectedClaimToken) {
+          console.warn(`[lead:claim:fenced] Заявка ${leadId}: отказ в обновлении статуса. Токен claim недействителен (актуальный: ${currentClaimToken || 'нет'}, истек: ${Boolean(isClaimExpired)}, ожидался: ${patch.expectedClaimToken})`);
           updateLeadNotificationStatus.lastFailureReason = 'fenced';
           return false;
         }
