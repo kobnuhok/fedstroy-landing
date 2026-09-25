@@ -1528,6 +1528,119 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.28. Надежность recovery: валидация размера пачки, семантика remaining и сброс emergencyFileUnreadable при пустом файле', async () => {
+      // 1. Проверка валидации размера пачки RECOVERY_BATCH_SIZE (getRecoveryBatchSize)
+      const origEnvBatch = process.env.RECOVERY_BATCH_SIZE;
+      try {
+        process.env.RECOVERY_BATCH_SIZE = '-1';
+        if (serverApp.getRecoveryBatchSize() !== 20 || serverApp.MAX_RECOVERY_BATCH !== 20) {
+          throw new Error(`Ожидался fallback на 20 при RECOVERY_BATCH_SIZE='-1', получено: ${serverApp.getRecoveryBatchSize()}`);
+        }
+        process.env.RECOVERY_BATCH_SIZE = '0';
+        if (serverApp.getRecoveryBatchSize() !== 20) {
+          throw new Error(`Ожидался fallback на 20 при RECOVERY_BATCH_SIZE='0', получено: ${serverApp.getRecoveryBatchSize()}`);
+        }
+        process.env.RECOVERY_BATCH_SIZE = '150';
+        if (serverApp.getRecoveryBatchSize() !== 20) {
+          throw new Error(`Ожидался fallback на 20 при значении свыше 100, получено: ${serverApp.getRecoveryBatchSize()}`);
+        }
+        process.env.RECOVERY_BATCH_SIZE = 'invalid_number';
+        if (serverApp.getRecoveryBatchSize() !== 20) {
+          throw new Error('Ожидался fallback на 20 при нечисловом значении');
+        }
+        process.env.RECOVERY_BATCH_SIZE = '50';
+        if (serverApp.getRecoveryBatchSize() !== 50 || serverApp.MAX_RECOVERY_BATCH !== 50) {
+          throw new Error(`Ожидалось 50, получено: ${serverApp.getRecoveryBatchSize()}`);
+        }
+      } finally {
+        if (origEnvBatch !== undefined) {
+          process.env.RECOVERY_BATCH_SIZE = origEnvBatch;
+        } else {
+          delete process.env.RECOVERY_BATCH_SIZE;
+        }
+      }
+
+      // 2. Проверка таймаута Telegram
+      if (serverApp.TELEGRAM_REQUEST_TIMEOUT_MS !== 15000) {
+        throw new Error(`Ожидался таймаут Telegram 15000ms, получено: ${serverApp.TELEGRAM_REQUEST_TIMEOUT_MS}`);
+      }
+
+      // 3. Проверка сброса emergencyFileUnreadable при пустом файле
+      const emergencyFile = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+      fs.writeFileSync(emergencyFile, '   \n  \t  ', 'utf8');
+      serverApp.loadEmergencyPatches();
+      if (serverApp.isEmergencyFileUnreadable()) {
+        throw new Error('Ожидался сброс флага emergencyFileUnreadable в false при пустом аварийном файле');
+      }
+      try { fs.unlinkSync(emergencyFile); } catch (_) {}
+
+      // 4. Проверка точной семантики remaining при частичном повторном сбое пачки
+      cleanTestData();
+      const leads = [];
+      for (let i = 1; i <= 10; i++) {
+        leads.push({
+          leadId: `ФС-REMAIN-${String(i).padStart(3, '0')}`,
+          name: `Клиент ${i}`,
+          phone: '+7 (916) 111-22-33',
+          source: 'Тест',
+          createdAt: new Date().toISOString(),
+          notifications: {
+            telegram: 'failed',
+            email: 'failed',
+            attempts: { telegram: 1, email: 1 },
+            updatedAt: new Date().toISOString()
+          },
+          file: null
+        });
+      }
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      // Пачка = 4. Из 4 заявок: первые 2 успешно доставляются, следующие 2 падают (attempts станут 2 < 3)
+      process.env.RECOVERY_BATCH_SIZE = '4';
+      const origSendTelegram = serverApp.sendToTelegram;
+      const origSendEmail = serverApp.sendToEmail;
+
+      serverApp.sendToTelegram = (lead) => {
+        const num = parseInt(lead.leadId.split('-')[2], 10);
+        if (num <= 2) {
+          return Promise.resolve({ fullyDelivered: true, messageSent: true });
+        }
+        return Promise.reject(new Error('Повторный сбой Telegram в пачке'));
+      };
+      serverApp.sendToEmail = (lead) => {
+        const num = parseInt(lead.leadId.split('-')[2], 10);
+        if (num <= 2) {
+          return Promise.resolve({ sent: true });
+        }
+        return Promise.reject(new Error('Повторный сбой Email в пачке'));
+      };
+
+      try {
+        const res = await serverApp.retryPendingNotifications(true);
+        if (!res.success) {
+          throw new Error(`Ожидался success: true, получено: ${JSON.stringify(res)}`);
+        }
+        if (res.processed !== 4) {
+          throw new Error(`Ожидалось processed === 4, получено: ${res.processed}`);
+        }
+        if (res.totalBatch !== 4) {
+          throw new Error(`Ожидалось totalBatch === 4, получено: ${res.totalBatch}`);
+        }
+        if (res.unprocessed !== 6) {
+          throw new Error(`Ожидалось unprocessed === 6 (10 всего - 4 в пачке), получено: ${res.unprocessed}`);
+        }
+        // remaining = 6 (unprocessed) + 2 (неразрешенные из текущей пачки) = 8
+        if (res.remaining !== 8) {
+          throw new Error(`Ожидалось remaining === 8 (6 не вошедших + 2 неразрешенных в пачке), получено: ${res.remaining}`);
+        }
+      } finally {
+        serverApp.sendToTelegram = origSendTelegram;
+        serverApp.sendToEmail = origSendEmail;
+        delete process.env.RECOVERY_BATCH_SIZE;
+        cleanTestData();
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();

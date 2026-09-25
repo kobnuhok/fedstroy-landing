@@ -102,7 +102,10 @@ function loadEmergencyPatches() {
   }
   try {
     const raw = fs.readFileSync(emergencyFile, 'utf8').trim();
-    if (!raw) return {};
+    if (!raw) {
+      emergencyFileUnreadable = false;
+      return {};
+    }
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       emergencyFileUnreadable = false;
@@ -557,6 +560,8 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+const TELEGRAM_REQUEST_TIMEOUT_MS = 15000;
+
 // Запрос к Telegram API: прямая отправка на Vercel/VPS + поддержка локального туннеля (обход блокировок на ПК в РФ)
 function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
   return new Promise((resolve, reject) => {
@@ -567,7 +572,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         path: apiPath,
         method: method,
         headers: headers,
-        timeout: 15000
+        timeout: TELEGRAM_REQUEST_TIMEOUT_MS
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -578,6 +583,9 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
             resolve({ ok: false, data: { description: raw } });
           }
         });
+      });
+      req.on('timeout', () => {
+        req.destroy(new Error(`Telegram request timed out after ${TELEGRAM_REQUEST_TIMEOUT_MS}ms (Vercel direct)`));
       });
       req.on('error', reject);
       if (body) req.write(body);
@@ -602,7 +610,8 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         method: method,
         headers: headers,
         socket: socket,
-        agent: false
+        agent: false,
+        timeout: TELEGRAM_REQUEST_TIMEOUT_MS
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -613,6 +622,9 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
             resolve({ ok: false, data: { description: raw } });
           }
         });
+      });
+      req.on('timeout', () => {
+        req.destroy(new Error(`Telegram request timed out after ${TELEGRAM_REQUEST_TIMEOUT_MS}ms (Proxy socket)`));
       });
       req.on('error', reject);
       if (body) req.write(body);
@@ -627,7 +639,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         path: apiPath,
         method: method,
         headers: headers,
-        timeout: 10000
+        timeout: TELEGRAM_REQUEST_TIMEOUT_MS
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -638,6 +650,9 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
             resolve({ ok: false, data: { description: raw } });
           }
         });
+      });
+      req.on('timeout', () => {
+        req.destroy(new Error(`Telegram direct request timed out after ${TELEGRAM_REQUEST_TIMEOUT_MS}ms (Fallback direct)`));
       });
       req.on('error', reject);
       if (body) req.write(body);
@@ -1052,6 +1067,7 @@ app.all(['/api/internal/retry', '/api/internal/recovery'], async (req, res) => {
     success: true,
     processed: result.processed || 0,
     totalBatch: result.totalBatch || 0,
+    unprocessed: result.unprocessed !== undefined ? result.unprocessed : 0,
     remaining: result.remaining || 0,
     runtime: isVercel ? 'vercel-serverless-ephemeral' : 'persistent-vps',
     timestamp: new Date().toISOString()
@@ -1442,7 +1458,20 @@ function shouldRetryEmail(notif) {
 const activeRecoveryLeadIds = new Set();
 let isRecoveryRunning = false;
 
-const MAX_RECOVERY_BATCH = parseInt(process.env.RECOVERY_BATCH_SIZE, 10) || 20;
+const DEFAULT_RECOVERY_BATCH_SIZE = 20;
+const MIN_RECOVERY_BATCH_SIZE = 1;
+const MAX_RECOVERY_BATCH_SIZE = 100;
+
+function getRecoveryBatchSize() {
+  const envVal = process.env.RECOVERY_BATCH_SIZE;
+  if (envVal !== undefined && envVal !== null && String(envVal).trim() !== '') {
+    const parsed = Number(envVal);
+    if (Number.isInteger(parsed) && parsed >= MIN_RECOVERY_BATCH_SIZE && parsed <= MAX_RECOVERY_BATCH_SIZE) {
+      return parsed;
+    }
+  }
+  return DEFAULT_RECOVERY_BATCH_SIZE;
+}
 
 // Повторная отправка недоставленных уведомлений при старте сервера или по крону
 async function retryPendingNotifications(force = false) {
@@ -1450,7 +1479,7 @@ async function retryPendingNotifications(force = false) {
     return { success: true, skipped: true, reason: 'startup retry disabled' };
   }
   if (!fs.existsSync(DATA_FILE)) {
-    return { success: true, processed: 0, totalBatch: 0, remaining: 0 };
+    return { success: true, processed: 0, totalBatch: 0, unprocessed: 0, remaining: 0 };
   }
 
   if (isRecoveryRunning) {
@@ -1461,7 +1490,9 @@ async function retryPendingNotifications(force = false) {
 
   let processedCount = 0;
   let totalBatchCount = 0;
+  let unprocessedCount = 0;
   let remainingCount = 0;
+  let batchUnresolvedRetryableCount = 0;
 
   // Синхронизируем накопившиеся отложенные патчи перед чтением с диска
   flushUnpersistedNotificationPatches();
@@ -1469,7 +1500,7 @@ async function retryPendingNotifications(force = false) {
   try {
     const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
     if (!content) {
-      return { success: true, processed: 0, totalBatch: 0, remaining: 0 };
+      return { success: true, processed: 0, totalBatch: 0, unprocessed: 0, remaining: 0 };
     }
     const leads = JSON.parse(content);
     if (!Array.isArray(leads)) {
@@ -1486,17 +1517,19 @@ async function retryPendingNotifications(force = false) {
     });
 
     const totalRetryable = allRetryableLeads.length;
-    // Ограничиваем размер пачки за один проход (MAX_RECOVERY_BATCH = 20),
+    const batchLimit = getRecoveryBatchSize();
+    // Ограничиваем размер пачки за один проход (по умолчанию 20, диапазон 1..100),
     // чтобы serverless functions (Vercel) не падали по таймауту при большом объеме накопившихся заявок
-    const retryableLeads = allRetryableLeads.slice(0, MAX_RECOVERY_BATCH);
+    const retryableLeads = allRetryableLeads.slice(0, batchLimit);
     totalBatchCount = retryableLeads.length;
-    remainingCount = Math.max(0, totalRetryable - totalBatchCount);
+    unprocessedCount = Math.max(0, totalRetryable - totalBatchCount);
 
     if (retryableLeads.length > 0) {
-      console.log(`[notify:recovery] Найдено ${totalRetryable} заявок, обрабатываем пачку из ${totalBatchCount} (остаток: ${remainingCount}).`);
+      console.log(`[notify:recovery] Найдено ${totalRetryable} заявок, обрабатываем пачку из ${totalBatchCount} (не вошло в пачку: ${unprocessedCount}).`);
       for (const lead of retryableLeads) {
         if (activeRecoveryLeadIds.has(lead.leadId)) {
           console.log(`[notify:recovery] Заявка ${lead.leadId} уже обрабатывается в активном потоке recovery, пропуск.`);
+          batchUnresolvedRetryableCount++;
           continue;
         }
         activeRecoveryLeadIds.add(lead.leadId);
@@ -1613,6 +1646,9 @@ async function retryPendingNotifications(force = false) {
             const finalNotif = currentPending ? { ...effectiveLead.notifications, ...currentPending } : effectiveLead.notifications;
             const tgStillRetryable = shouldRetryTelegram(finalNotif);
             const emStillRetryable = shouldRetryEmail(finalNotif);
+            if (tgStillRetryable || emStillRetryable) {
+              batchUnresolvedRetryableCount++;
+            }
             const stillNeedsFile = emStillRetryable || (tgStillRetryable && finalNotif?.telegramDocSent !== true);
             if (!stillNeedsFile && fileAttachment?.path && !shouldKeepUploadedFiles()) {
               try {
@@ -1622,6 +1658,9 @@ async function retryPendingNotifications(force = false) {
 
             processedCount++;
           });
+        } catch (leadErr) {
+          console.error(`[notify:recovery:lead-fail] Сбой при обработке заявки ${lead.leadId}:`, leadErr.message);
+          batchUnresolvedRetryableCount++;
         } finally {
           activeRecoveryLeadIds.delete(lead.leadId);
         }
@@ -1629,10 +1668,13 @@ async function retryPendingNotifications(force = false) {
       console.log(`[notify:recovery] Повторная отправка пачки завершена (обработано: ${processedCount}).`);
     }
 
+    remainingCount = unprocessedCount + batchUnresolvedRetryableCount;
+
     return {
       success: true,
       processed: processedCount,
       totalBatch: totalBatchCount,
+      unprocessed: unprocessedCount,
       remaining: remainingCount
     };
   } catch (err) {
@@ -1642,7 +1684,8 @@ async function retryPendingNotifications(force = false) {
       error: err.message,
       processed: processedCount,
       totalBatch: totalBatchCount,
-      remaining: remainingCount
+      unprocessed: unprocessedCount,
+      remaining: unprocessedCount + batchUnresolvedRetryableCount
     };
   } finally {
     isRecoveryRunning = false;
@@ -1666,6 +1709,8 @@ app.MAX_NOTIFICATION_QUEUE = MAX_NOTIFICATION_QUEUE;
 app.updateLeadNotificationStatus = updateLeadNotificationStatus;
 app.sendToTelegram = sendToTelegram;
 app.sendToEmail = sendToEmail;
+app.requestTelegram = requestTelegram;
+app.TELEGRAM_REQUEST_TIMEOUT_MS = TELEGRAM_REQUEST_TIMEOUT_MS;
 app.unpersistedNotificationPatches = unpersistedNotificationPatches;
 app.getUnpersistedNotificationPatch = getUnpersistedNotificationPatch;
 app.activeRecoveryLeadIds = activeRecoveryLeadIds;
@@ -1673,7 +1718,12 @@ app.enqueueUnpersistedNotificationPatch = enqueueUnpersistedNotificationPatch;
 app.flushUnpersistedNotificationPatches = flushUnpersistedNotificationPatches;
 app.loadEmergencyPatches = loadEmergencyPatches;
 app.writeEmergencyFileAtomic = writeEmergencyFileAtomic;
-app.MAX_RECOVERY_BATCH = MAX_RECOVERY_BATCH;
+Object.defineProperty(app, 'MAX_RECOVERY_BATCH', {
+  get: () => getRecoveryBatchSize(),
+  enumerable: true,
+  configurable: true
+});
+app.getRecoveryBatchSize = getRecoveryBatchSize;
 app.isEmergencyFileUnreadable = () => emergencyFileUnreadable;
 
 module.exports = app;
