@@ -473,18 +473,42 @@ const activeRecoveryLeadIds = activeNotificationLeadIds;
 
 // Атомарное обновление статуса доставки уведомлений в leads.json с контролем ошибок и retry
 function updateLeadNotificationStatus(leadId, patch, maxRetries = 3) {
+  updateLeadNotificationStatus.lastFailureReason = null;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     let tempFile = null;
     try {
-      if (!fs.existsSync(DATA_FILE)) return false;
+      if (!fs.existsSync(DATA_FILE)) {
+        updateLeadNotificationStatus.lastFailureReason = 'not_found';
+        return false;
+      }
       const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-      if (!content) return false;
+      if (!content) {
+        updateLeadNotificationStatus.lastFailureReason = 'empty';
+        return false;
+      }
       const leads = JSON.parse(content);
-      if (!Array.isArray(leads)) return false;
+      if (!Array.isArray(leads)) {
+        updateLeadNotificationStatus.lastFailureReason = 'invalid_json';
+        return false;
+      }
       const lead = leads.find(l => l.leadId === leadId);
-      if (!lead) return false;
+      if (!lead) {
+        updateLeadNotificationStatus.lastFailureReason = 'lead_not_found';
+        return false;
+      }
 
       const prevNotif = lead.notifications || {};
+
+      // Fencing token check: защита от гонки и перезаписи статуса устаревшим воркером
+      if (patch.expectedClaimToken !== undefined) {
+        const currentClaimToken = prevNotif.claim?.token;
+        if (currentClaimToken !== patch.expectedClaimToken) {
+          console.warn(`[lead:claim:fenced] Заявка ${leadId}: отказ в обновлении статуса. Токен claim не совпадает (актуальный: ${currentClaimToken || 'нет'}, ожидался: ${patch.expectedClaimToken})`);
+          updateLeadNotificationStatus.lastFailureReason = 'fenced';
+          return false;
+        }
+      }
+
       const prevAttempts = prevNotif.attempts || {
         telegram: (prevNotif.telegram && prevNotif.telegram !== 'pending') ? 1 : 0,
         email: (prevNotif.email && prevNotif.email !== 'pending') ? 1 : 0
@@ -500,6 +524,7 @@ function updateLeadNotificationStatus(leadId, patch, maxRetries = 3) {
       delete cleanPatch.incEmailAttempt;
       delete cleanPatch.telegramAttempts;
       delete cleanPatch.emailAttempts;
+      delete cleanPatch.expectedClaimToken;
 
       lead.notifications = {
         ...prevNotif,
@@ -530,10 +555,12 @@ function updateLeadNotificationStatus(leadId, patch, maxRetries = 3) {
       }
       if (attempt === maxRetries) {
         console.error(`[lead:status:fatal] Не удалось обновить статус заявки ${leadId} после ${maxRetries} попыток:`, err.message);
+        updateLeadNotificationStatus.lastFailureReason = 'io_error';
         return false;
       }
     }
   }
+  updateLeadNotificationStatus.lastFailureReason = 'io_error';
   return false;
 }
 
@@ -1192,6 +1219,31 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       });
     }
 
+    if (area) {
+      const cleanArea = String(area).trim();
+      if (cleanArea.length > 32) {
+        if (attachedFile?.path) {
+          try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+        }
+        return res.status(400).json({
+          success: false,
+          error: 'Поле площади не должно превышать 32 символов.'
+        });
+      }
+      // Допустимые форматы: числа (целые/дробные с точкой/запятой и разделителями тысяч), опционально единицы измерения (м², м2, кв.м)
+      const normalizedArea = cleanArea.replace(/\s+/g, ' ');
+      const areaRegex = /^([0-9]+([.,][0-9]+)?|[0-9]{1,3}(\s[0-9]{3})+([.,][0-9]+)?)(\s*(м²|м2|кв\.?\s*м\.?))?$/i;
+      if (!areaRegex.test(normalizedArea)) {
+        if (attachedFile?.path) {
+          try { fs.unlinkSync(attachedFile.path); } catch (_) {}
+        }
+        return res.status(400).json({
+          success: false,
+          error: 'Пожалуйста, укажите корректную площадь объекта (например: 650 или 1 250 м²).'
+        });
+      }
+    }
+
     if (comment && String(comment).length > 5000) {
       if (attachedFile?.path) {
         try { fs.unlinkSync(attachedFile.path); } catch (_) {}
@@ -1241,6 +1293,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randomHex = crypto.randomBytes(4).toString('hex');
     const leadId = `ФС-${dateStr}-${randomHex}`;
+    const initialClaimToken = crypto.randomBytes(4).toString('hex');
 
     const leadRecord = {
       leadId,
@@ -1260,7 +1313,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
           email: 0
         },
         claim: {
-          token: crypto.randomBytes(4).toString('hex'),
+          token: initialClaimToken,
           expiresAt: Date.now() + NOTIFICATION_CLAIM_TIMEOUT_MS
         },
         updatedAt: new Date().toISOString()
@@ -1291,6 +1344,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
         incTelegramAttempt: true,
         incEmailAttempt: true,
         claim: null,
+        expectedClaimToken: initialClaimToken,
         ...(tgRes?.messageId ? { telegramMessageId: tgRes.messageId } : {}),
         ...(tgRes?.documentSent !== null && tgRes?.documentSent !== undefined ? { telegramDocSent: tgRes.documentSent } : {}),
         ...(emRes?.messageId ? { emailMessageId: emRes.messageId } : {}),
@@ -1301,8 +1355,12 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
 
       const saved = updateLeadNotificationStatus(leadRecord.leadId, patch);
       if (!saved) {
-        console.error(`[lead:notification-state:fatal] Не удалось сохранить статус уведомлений для заявки ${leadRecord.leadId}! Постановка в буфер отложенной синхронизации.`);
-        enqueueUnpersistedNotificationPatch(leadRecord.leadId, patch);
+        if (updateLeadNotificationStatus.lastFailureReason === 'fenced') {
+          console.warn(`[lead:notification-state:fenced] Заявка ${leadRecord.leadId} перехвачена другим воркером (fencing mismatch), отложенная синхронизация отменена.`);
+        } else {
+          console.error(`[lead:notification-state:fatal] Не удалось сохранить статус уведомлений для заявки ${leadRecord.leadId}! Постановка в буфер отложенной синхронизации.`);
+          enqueueUnpersistedNotificationPatch(leadRecord.leadId, patch);
+        }
       }
       return saved;
     };
@@ -1409,7 +1467,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       activeNotificationLeadIds.delete(leadRecord.leadId);
       if (err.code === 'QUEUE_OVERFLOW') {
         console.warn(`[lead:notify:backpressure] Очередь уведомлений переполнена (${MAX_NOTIFICATION_QUEUE}). Заявка ${leadRecord.leadId} зарегистрирована в leads.json со статусом pending и будет обработана через retry.`);
-        updateLeadNotificationStatus(leadRecord.leadId, { claim: null });
+        updateLeadNotificationStatus(leadRecord.leadId, { claim: null, expectedClaimToken: initialClaimToken });
       } else {
         console.error('[lead:notify:queue:fatal]', err.message);
       }
@@ -1581,12 +1639,19 @@ async function retryPendingNotifications(force = false) {
 
         activeNotificationLeadIds.add(lead.leadId);
         const claimToken = crypto.randomBytes(4).toString('hex');
-        updateLeadNotificationStatus(lead.leadId, {
+        const updateStatusFn = app.updateLeadNotificationStatus || updateLeadNotificationStatus;
+        const claimed = updateStatusFn(lead.leadId, {
           claim: {
             token: claimToken,
             expiresAt: Date.now() + NOTIFICATION_CLAIM_TIMEOUT_MS
           }
         });
+        if (!claimed) {
+          console.warn(`[notify:recovery] Не удалось подтвердить lease claim в storage для заявки ${lead.leadId}, пропуск.`);
+          activeNotificationLeadIds.delete(lead.leadId);
+          batchUnresolvedRetryableCount++;
+          continue;
+        }
 
         try {
           await runWithNotificationQueue(async () => {
@@ -1626,12 +1691,17 @@ async function retryPendingNotifications(force = false) {
                 telegram: 'partial',
                 telegramDocError: 'Вложение отсутствует на диске сервера, повтор отменен',
                 fileMissing: true,
-                incTelegramAttempt: true
+                incTelegramAttempt: true,
+                expectedClaimToken: claimToken
               };
-              const saved = updateLeadNotificationStatus(effectiveLead.leadId, skipPatch);
+              const saved = updateStatusFn(effectiveLead.leadId, skipPatch);
               if (!saved) {
-                console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${effectiveLead.leadId}! Постановка в буфер отложенной синхронизации.`);
-                enqueueUnpersistedNotificationPatch(effectiveLead.leadId, skipPatch);
+                if (updateStatusFn.lastFailureReason === 'fenced') {
+                  console.warn(`[notify:recovery:fenced] Заявка ${effectiveLead.leadId} перехвачена другим воркером, отложенная синхронизация отменена.`);
+                } else {
+                  console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${effectiveLead.leadId}! Постановка в буфер отложенной синхронизации.`);
+                  enqueueUnpersistedNotificationPatch(effectiveLead.leadId, skipPatch);
+                }
               }
             }
 
@@ -1654,7 +1724,8 @@ async function retryPendingNotifications(force = false) {
 
             const [tgSettled, emSettled] = await Promise.allSettled(tasks);
             const patch = {
-              claim: null
+              claim: null,
+              expectedClaimToken: claimToken
             };
 
             if (tgSettled.status === 'fulfilled' && tgSettled.value) {
@@ -1685,10 +1756,14 @@ async function retryPendingNotifications(force = false) {
             }
 
             if (Object.keys(patch).length > 0) {
-              const saved = updateLeadNotificationStatus(effectiveLead.leadId, patch);
+              const saved = updateStatusFn(effectiveLead.leadId, patch);
               if (!saved) {
-                console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${effectiveLead.leadId} при retry! Постановка в буфер отложенной синхронизации.`);
-                enqueueUnpersistedNotificationPatch(effectiveLead.leadId, patch);
+                if (updateStatusFn.lastFailureReason === 'fenced') {
+                  console.warn(`[notify:recovery:fenced] Заявка ${effectiveLead.leadId} перехвачена другим воркером (fencing mismatch), отложенная синхронизация отменена.`);
+                } else {
+                  console.error(`[lead:notification-state:fatal] Не удалось обновить статус заявки ${effectiveLead.leadId} при retry! Постановка в буфер отложенной синхронизации.`);
+                  enqueueUnpersistedNotificationPatch(effectiveLead.leadId, patch);
+                }
               } else {
                 effectiveLead.notifications = {
                   ...effectiveLead.notifications,
@@ -1716,7 +1791,7 @@ async function retryPendingNotifications(force = false) {
           });
         } catch (leadErr) {
           console.error(`[notify:recovery:lead-fail] Сбой при обработке заявки ${lead.leadId}:`, leadErr.message);
-          updateLeadNotificationStatus(lead.leadId, { claim: null });
+          updateStatusFn(lead.leadId, { claim: null, expectedClaimToken: claimToken });
           batchUnresolvedRetryableCount++;
         } finally {
           activeNotificationLeadIds.delete(lead.leadId);

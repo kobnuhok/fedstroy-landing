@@ -1850,6 +1850,179 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.31. Защита от сбоя захвата lease, fencing token compare-before-write и валидация поля площади (area)', async () => {
+      // 1. Проверка: recovery НЕ начинает отправку без подтвержденного claim в storage
+      cleanTestData();
+      const testLead = {
+        leadId: 'ФС-CLAIM-FAIL-001',
+        name: 'Тест сбоя захвата lease',
+        phone: '+7 (999) 111-22-33',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        }
+      };
+      fs.writeFileSync(DATA_FILE, JSON.stringify([testLead], null, 2), 'utf8');
+
+      let sendTgCalled = false;
+      const origSendTg = serverApp.sendToTelegram;
+      const origSendEm = serverApp.sendToEmail;
+      const origUpdateStatus = serverApp.updateLeadNotificationStatus;
+
+      // Симулируем отказ записи claim в leads.json
+      serverApp.updateLeadNotificationStatus = (leadId, patch) => {
+        if (patch?.claim) {
+          return false; // отказ в захвате lease
+        }
+        return origUpdateStatus(leadId, patch);
+      };
+      serverApp.sendToTelegram = () => {
+        sendTgCalled = true;
+        return Promise.resolve({ fullyDelivered: true, messageSent: true });
+      };
+      serverApp.sendToEmail = () => Promise.resolve({ sent: true });
+
+      try {
+        const recRes = await serverApp.retryPendingNotifications(true);
+        if (!recRes.success) {
+          throw new Error('Ожидался success: true от recovery runner');
+        }
+        if (sendTgCalled) {
+          throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ: recovery отправил уведомления, несмотря на отказ в установке claim lease!');
+        }
+        if (recRes.processed !== 0) {
+          throw new Error(`Ожидалось processed === 0, получено: ${recRes.processed}`);
+        }
+        if (recRes.remaining !== 1) {
+          throw new Error(`Ожидалось remaining === 1 (неразрешенная заявка), получено: ${recRes.remaining}`);
+        }
+      } finally {
+        serverApp.sendToTelegram = origSendTg;
+        serverApp.sendToEmail = origSendEm;
+        serverApp.updateLeadNotificationStatus = origUpdateStatus;
+        cleanTestData();
+      }
+
+      // 2. Fencing token: compare-before-write защищает от перезаписи статуса устаревшим воркером
+      cleanTestData();
+      const fencingLead = {
+        leadId: 'ФС-FENCING-001',
+        name: 'Тест Fencing Token',
+        phone: '+7 (999) 555-66-77',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          claim: {
+            token: 'worker-token-current',
+            expiresAt: Date.now() + 60000
+          },
+          updatedAt: new Date().toISOString()
+        }
+      };
+      fs.writeFileSync(DATA_FILE, JSON.stringify([fencingLead], null, 2), 'utf8');
+
+      // Попытка обновления с устаревшим токеном 'worker-token-old'
+      const staleRes = serverApp.updateLeadNotificationStatus('ФС-FENCING-001', {
+        telegram: 'sent',
+        expectedClaimToken: 'worker-token-old'
+      });
+      if (staleRes !== false) {
+        throw new Error('Ожидался отказ (false) при несовпадении expectedClaimToken');
+      }
+      if (serverApp.updateLeadNotificationStatus.lastFailureReason !== 'fenced') {
+        throw new Error(`Ожидался lastFailureReason === 'fenced', получено: ${serverApp.updateLeadNotificationStatus.lastFailureReason}`);
+      }
+
+      // Проверяем, что в leads.json статус НЕ изменился
+      const afterStaleLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      if (afterStaleLeads[0].notifications.telegram !== 'pending') {
+        throw new Error('Статус заявки был ошибочно перезаписан устаревшим токеном!');
+      }
+
+      // Успешное обновление с правильным токеном
+      const validRes = serverApp.updateLeadNotificationStatus('ФС-FENCING-001', {
+        telegram: 'sent',
+        claim: null,
+        expectedClaimToken: 'worker-token-current'
+      });
+      if (validRes !== true) {
+        throw new Error('Ожидался успех (true) при совпадении expectedClaimToken');
+      }
+      const afterValidLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+      if (afterValidLeads[0].notifications.telegram !== 'sent' || afterValidLeads[0].notifications.claim) {
+        throw new Error('Статус не перешел в sent или claim не был очищен');
+      }
+
+      // Повторная попытка тем же токеном после удаления claim отклоняется (токен уже не активен)
+      const afterClearRes = serverApp.updateLeadNotificationStatus('ФС-FENCING-001', {
+        telegram: 'failed',
+        expectedClaimToken: 'worker-token-current'
+      });
+      if (afterClearRes !== false || serverApp.updateLeadNotificationStatus.lastFailureReason !== 'fenced') {
+        throw new Error('Ожидалась блокировка записи после завершения и снятия claim');
+      }
+
+      // 3. Бизнес-валидация поля площади (area)
+      // 3.1. Превышение длины > 32 символов
+      const tooLongArea = '1'.repeat(33);
+      const resTooLong = await fetch(`http://localhost:${TEST_PORT}/api/lead`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          name: 'Иван',
+          phone: '+7 (999) 000-11-22',
+          agreement: 'true',
+          area: tooLongArea
+        })
+      });
+      if (resTooLong.status !== 400) {
+        throw new Error(`Ожидался 400 при длине area > 32, получено: ${resTooLong.status}`);
+      }
+      const tooLongData = await resTooLong.json();
+      if (!tooLongData.error?.includes('32 символов')) {
+        throw new Error(`Ожидалась ошибка лимита символов, получено: ${JSON.stringify(tooLongData)}`);
+      }
+
+      // 3.2. Невалидный формат (буквенный мусор / спецсимволы)
+      const resInvalidFormat = await fetch(`http://localhost:${TEST_PORT}/api/lead`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          name: 'Иван',
+          phone: '+7 (999) 000-11-22',
+          agreement: 'true',
+          area: 'не_число_м2'
+        })
+      });
+      if (resInvalidFormat.status !== 400) {
+        throw new Error(`Ожидался 400 при невалидном формате area, получено: ${resInvalidFormat.status}`);
+      }
+
+      // 3.3. Корректные допустимые форматы
+      const validAreas = ['650', '1 250 м²', '100.5 кв.м', '3000 м2'];
+      for (const validArea of validAreas) {
+        const resValid = await fetch(`http://localhost:${TEST_PORT}/api/lead`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            name: 'Иван',
+            phone: '+7 (999) 000-11-22',
+            agreement: 'true',
+            area: validArea
+          })
+        });
+        if (resValid.status !== 200) {
+          throw new Error(`Ожидался 200 для валидной площади "${validArea}", получено: ${resValid.status}`);
+        }
+      }
+      cleanTestData();
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();
