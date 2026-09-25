@@ -15,9 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 const ALLOWED_ORIGIN_PATTERNS = [
-  /^https:\/\/kobnuhok\.github\.io$/,
-  /^https:\/\/(www\.)?ooofedstroy\.ru$/,
-  /^https:\/\/fedstroy-landing(-[a-zA-Z0-9-]+)?\.vercel\.app$/,
+  /^https:\/\/fedstroy-landing\.vercel\.app$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 ];
 
@@ -81,7 +79,7 @@ const unpersistedNotificationPatches = new Map();
 
 function writeEmergencyFileAtomic(emergencyFile, data) {
   const content = JSON.stringify(data, null, 2);
-  const tmpFile = `${emergencyFile}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+  const tmpFile = `${emergencyFile}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}.tmp`;
   try {
     fs.writeFileSync(tmpFile, content, 'utf8');
     fs.renameSync(tmpFile, emergencyFile);
@@ -1725,5 +1723,6 @@ Object.defineProperty(app, 'MAX_RECOVERY_BATCH', {
 });
 app.getRecoveryBatchSize = getRecoveryBatchSize;
 app.isEmergencyFileUnreadable = () => emergencyFileUnreadable;
+app.ALLOWED_ORIGIN_PATTERNS = ALLOWED_ORIGIN_PATTERNS;
 
 module.exports = app;

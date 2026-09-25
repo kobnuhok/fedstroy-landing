@@ -1641,6 +1641,70 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.29. Hardening: строгий CORS whitelist, crypto-идентификаторы временных emergency-файлов и изоляция data/.gitkeep', async () => {
+      // 1. Проверка CORS: разрешены только fedstroy-landing.vercel.app и localhost/127.0.0.1
+      const patterns = serverApp.ALLOWED_ORIGIN_PATTERNS || [];
+      const isAllowed = (origin) => patterns.some(re => re.test(origin));
+
+      if (!isAllowed('https://fedstroy-landing.vercel.app')) {
+        throw new Error('Ожидался допуск https://fedstroy-landing.vercel.app');
+      }
+      if (!isAllowed('http://localhost:3000') || !isAllowed('http://127.0.0.1:8080')) {
+        throw new Error('Ожидался допуск localhost и 127.0.0.1');
+      }
+      // Устаревшие или потенциально опасные origin должны отклоняться
+      if (isAllowed('https://kobnuhok.github.io')) {
+        throw new Error('Ожидалась блокировка устаревшего origin https://kobnuhok.github.io');
+      }
+      if (isAllowed('https://ooofedstroy.ru') || isAllowed('https://www.ooofedstroy.ru')) {
+        throw new Error('Ожидалась блокировка https://ooofedstroy.ru');
+      }
+      if (isAllowed('https://fedstroy-landing-preview-123.vercel.app')) {
+        throw new Error('Ожидалась блокировка preview-доменов Vercel');
+      }
+      if (isAllowed('https://evil-site.com')) {
+        throw new Error('Ожидалась блокировка произвольного внешнего origin');
+      }
+
+      // 2. Проверка генерации временного имени аварийного файла через crypto (hex)
+      const emergencyFile = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+      let createdTmpFile = null;
+      const origWriteFileSync = fs.writeFileSync;
+      fs.writeFileSync = (file, content, encoding) => {
+        if (typeof file === 'string' && file.endsWith('.tmp')) {
+          createdTmpFile = file;
+        }
+        return origWriteFileSync(file, content, encoding);
+      };
+
+      try {
+        serverApp.writeEmergencyFileAtomic(emergencyFile, { test: 123 });
+        if (!createdTmpFile) {
+          throw new Error('Не был создан временный файл .tmp при writeEmergencyFileAtomic');
+        }
+        // Формат: <emergencyFile>.<timestamp>.<8_hex_chars>.tmp
+        const match = createdTmpFile.match(/\.(\d+)\.([a-f0-9]{8})\.tmp$/);
+        if (!match) {
+          throw new Error(`Временный файл не соответствует crypto hex формату: ${createdTmpFile}`);
+        }
+      } finally {
+        fs.writeFileSync = origWriteFileSync;
+        if (fs.existsSync(emergencyFile)) {
+          try { fs.unlinkSync(emergencyFile); } catch (_) {}
+        }
+      }
+
+      // 3. Проверка наличия data/.gitkeep и исключения runtime-файлов из git
+      const gitkeepPath = path.resolve(__dirname, '..', 'data', '.gitkeep');
+      if (!fs.existsSync(gitkeepPath)) {
+        throw new Error('Отсутствует файл data/.gitkeep для сохранения каталога data в Git');
+      }
+      const gitignoreContent = fs.readFileSync(path.resolve(__dirname, '..', '.gitignore'), 'utf8');
+      if (!gitignoreContent.includes('data/leads.json') || !gitignoreContent.includes('data/*.tmp*')) {
+        throw new Error('.gitignore не содержит исключений для runtime-файлов data/leads.json');
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();

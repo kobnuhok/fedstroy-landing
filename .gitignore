@@ -8,6 +8,13 @@ node_modules/
 uploads/*
 !uploads/.gitkeep
 
+# Runtime database and recovery buffers
+data/leads.json
+data/*.tmp*
+data/unpersisted_patches_emergency.json
+data/unpersisted_patches_emergency.json.corrupt.*
+!data/.gitkeep
+
 # Scratch extracted files
 extracted_*.txt
 falshpol_text.txt
@@ -16,5 +23,6 @@ Thumbs.db
 test-results/
 playwright-report/
 test/.tmp*
+
 
 

@@ -44,6 +44,8 @@ if (allowUnreachableTelegram) {
 }
 console.log('======================================================\n');
 
+const TELEGRAM_REQUEST_TIMEOUT_MS = 15000;
+
 // Запрос к Telegram API с поддержкой локального прокси и контролем таймаута
 function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
   return new Promise((resolve) => {
@@ -53,7 +55,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
       port: 10808,
       method: 'CONNECT',
       path: 'api.telegram.org:443',
-      timeout: 1000
+      timeout: 1500
     });
 
     let finished = false;
@@ -65,7 +67,8 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         method: method,
         headers: headers,
         socket: socket,
-        agent: false
+        agent: false,
+        timeout: TELEGRAM_REQUEST_TIMEOUT_MS
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -76,6 +79,9 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
             resolve({ ok: false, data: { description: raw } });
           }
         });
+      });
+      req.on('timeout', () => {
+        req.destroy(new Error(`Таймаут соединения с api.telegram.org через прокси-сокет (${TELEGRAM_REQUEST_TIMEOUT_MS}ms)`));
       });
       req.on('error', (err) => resolve({ ok: false, error: err.message }));
       if (body) req.write(body);
@@ -90,7 +96,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
         path: apiPath,
         method: method,
         headers: headers,
-        timeout: 4000
+        timeout: TELEGRAM_REQUEST_TIMEOUT_MS
       }, (res) => {
         let raw = '';
         res.on('data', chunk => raw += chunk);
@@ -104,8 +110,7 @@ function requestTelegram(apiPath, method = 'GET', headers = {}, body = null) {
       });
       req.on('error', (err) => resolve({ ok: false, error: err.message }));
       req.on('timeout', () => {
-        req.destroy();
-        resolve({ ok: false, error: 'Таймаут соединения с api.telegram.org (блокировка провайдером в РФ)' });
+        req.destroy(new Error(`Таймаут прямого соединения с api.telegram.org (${TELEGRAM_REQUEST_TIMEOUT_MS}ms)`));
       });
       if (body) req.write(body);
       req.end();
