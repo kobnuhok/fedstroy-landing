@@ -321,11 +321,13 @@ try {
 
 // Функция валидации сигнатур содержимого файлов (защита от подмены расширений)
 function validateFileContent(filePath, originalName) {
+  let fd;
   try {
-    const fd = fs.openSync(filePath, 'r');
+    fd = fs.openSync(filePath, 'r');
     const buffer = Buffer.alloc(16);
     const bytesRead = fs.readSync(fd, buffer, 0, 16, 0);
     fs.closeSync(fd);
+    fd = undefined;
 
     // 1. Проверка на исполняемые файлы (Windows PE: MZ, Linux ELF: \x7fELF, shebang: #!)
     if (bytesRead >= 2) {
@@ -369,6 +371,10 @@ function validateFileContent(filePath, originalName) {
     return { valid: true };
   } catch (err) {
     return { valid: false, error: `Ошибка проверки файла: ${err.message}` };
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch (_) {}
+    }
   }
 }
 
@@ -452,6 +458,19 @@ function saveLead(newLead) {
   return true;
 }
 
+// Таймаут лиза (claim lease) для защиты от гонки фоновой отправки и recovery sweep (60 секунд)
+const NOTIFICATION_CLAIM_TIMEOUT_MS = 60000;
+
+function isNotificationClaimActive(notif) {
+  if (!notif || !notif.claim) return false;
+  const expiresAt = notif.claim.expiresAt;
+  return typeof expiresAt === 'number' && expiresAt > Date.now();
+}
+
+// Активные идентификаторы заявок в текущем процессе Node.js (in-memory изоляция)
+const activeNotificationLeadIds = new Set();
+const activeRecoveryLeadIds = activeNotificationLeadIds;
+
 // Атомарное обновление статуса доставки уведомлений в leads.json с контролем ошибок и retry
 function updateLeadNotificationStatus(leadId, patch, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -496,6 +515,9 @@ function updateLeadNotificationStatus(leadId, patch, maxRetries = 3) {
       }
       if (lead.notifications.email === 'sent') {
         delete lead.notifications.emailError;
+      }
+      if (cleanPatch.claim === null) {
+        delete lead.notifications.claim;
       }
       const randomSuffix = crypto.randomBytes(4).toString('hex');
       tempFile = `${DATA_FILE}.tmp.${Date.now()}_${randomSuffix}`;
@@ -954,7 +976,7 @@ async function sendToEmail(lead, file) {
                   ` : (isOversizedForEmail ? `
                   <div style="margin-top: 6px; padding: 8px 12px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; font-size: 13px; color: #92400e; line-height: 1.4;">
                     ⚠️ <strong>Вложение не прикреплено к письму:</strong> размер файла превышает лимит почтового шлюза (20 МБ) с учетом MIME-кодирования (жесткий лимит Яндекс Почты — 30 МБ).<br>
-                    📁 <strong>Файл сохранен на сервере в каталоге заявок (uploads/) и направляется в Telegram-чат ПТО отдельным каналом.</strong>
+                    📁 <strong>Файл превышает лимит email-вложения. Информация о файле сохранена в заявке; передача вложения выполняется отдельным каналом уведомлений.</strong>
                   </div>
                   ` : '')}
                 </td>
@@ -1237,6 +1259,10 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
           telegram: 0,
           email: 0
         },
+        claim: {
+          token: crypto.randomBytes(4).toString('hex'),
+          expiresAt: Date.now() + NOTIFICATION_CLAIM_TIMEOUT_MS
+        },
         updatedAt: new Date().toISOString()
       },
       file: attachedFile ? {
@@ -1246,6 +1272,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       } : null
     };
 
+    activeNotificationLeadIds.add(leadRecord.leadId);
     saveLead(leadRecord);
 
     const fileAttachment = attachedFile ? {
@@ -1263,6 +1290,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
         email: emStatus,
         incTelegramAttempt: true,
         incEmailAttempt: true,
+        claim: null,
         ...(tgRes?.messageId ? { telegramMessageId: tgRes.messageId } : {}),
         ...(tgRes?.documentSent !== null && tgRes?.documentSent !== undefined ? { telegramDocSent: tgRes.documentSent } : {}),
         ...(emRes?.messageId ? { emailMessageId: emRes.messageId } : {}),
@@ -1287,14 +1315,18 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
 
     // 1. В тестах: синхронное ожидание для проверки моков в ассертах
     if (process.env.NODE_ENV === 'test') {
-      const [telegramResult, emailResult] = await runWithNotificationQueue(() => Promise.all([
-        sendToTelegram(leadRecord, fileAttachment),
-        sendToEmail(leadRecord, fileAttachment)
-      ]));
-      recordNotificationResults(telegramResult, emailResult);
-      responsePayload.telegram = telegramResult;
-      responsePayload.email = emailResult;
-      return res.status(200).json(responsePayload);
+      try {
+        const [telegramResult, emailResult] = await runWithNotificationQueue(() => Promise.all([
+          sendToTelegram(leadRecord, fileAttachment),
+          sendToEmail(leadRecord, fileAttachment)
+        ]));
+        recordNotificationResults(telegramResult, emailResult);
+        responsePayload.telegram = telegramResult;
+        responsePayload.email = emailResult;
+        return res.status(200).json(responsePayload);
+      } finally {
+        activeNotificationLeadIds.delete(leadRecord.leadId);
+      }
     }
 
     // 2. В serverless (Vercel): регистрация background job через @vercel/functions waitUntil
@@ -1311,6 +1343,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       }).catch(err => {
         console.error('[lead:notify:vercel:error]', err.message);
       }).finally(() => {
+        activeNotificationLeadIds.delete(leadRecord.leadId);
         const pendingPatch = getUnpersistedNotificationPatch(leadRecord.leadId);
         const currentNotif = pendingPatch ? { ...leadRecord.notifications, ...pendingPatch } : leadRecord.notifications;
         const tgRetryable = shouldRetryTelegram(currentNotif);
@@ -1360,6 +1393,7 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
       } catch (asyncErr) {
         console.error('[lead:notify:background:error]', asyncErr.message);
       } finally {
+        activeNotificationLeadIds.delete(leadRecord.leadId);
         const pendingPatch = getUnpersistedNotificationPatch(leadRecord.leadId);
         const currentNotif = pendingPatch ? { ...leadRecord.notifications, ...pendingPatch } : leadRecord.notifications;
         const tgRetryable = shouldRetryTelegram(currentNotif);
@@ -1372,13 +1406,18 @@ app.post('/api/lead', leadRateLimiter, (req, res, next) => {
         }
       }
     }).catch(err => {
+      activeNotificationLeadIds.delete(leadRecord.leadId);
       if (err.code === 'QUEUE_OVERFLOW') {
         console.warn(`[lead:notify:backpressure] Очередь уведомлений переполнена (${MAX_NOTIFICATION_QUEUE}). Заявка ${leadRecord.leadId} зарегистрирована в leads.json со статусом pending и будет обработана через retry.`);
+        updateLeadNotificationStatus(leadRecord.leadId, { claim: null });
       } else {
         console.error('[lead:notify:queue:fatal]', err.message);
       }
     });
   } catch (err) {
+    if (typeof leadRecord !== 'undefined' && leadRecord?.leadId) {
+      activeNotificationLeadIds.delete(leadRecord.leadId);
+    }
     if (attachedFile?.path && !shouldKeepUploadedFiles()) {
       try {
         if (fs.existsSync(attachedFile.path)) fs.unlinkSync(attachedFile.path);
@@ -1453,7 +1492,6 @@ function shouldRetryEmail(notif) {
   return ['pending', 'failed'].includes(status) && attempts < MAX_NOTIFICATION_ATTEMPTS;
 }
 
-const activeRecoveryLeadIds = new Set();
 let isRecoveryRunning = false;
 
 const DEFAULT_RECOVERY_BATCH_SIZE = 20;
@@ -1509,8 +1547,10 @@ async function retryPendingNotifications(force = false) {
     const emergencyPatchesCache = loadEmergencyPatches();
 
     const allRetryableLeads = leads.filter(l => {
+      if (activeNotificationLeadIds.has(l.leadId)) return false;
       const pendingPatch = getUnpersistedNotificationPatch(l.leadId, emergencyPatchesCache);
       const effectiveNotif = pendingPatch ? { ...l.notifications, ...pendingPatch } : l.notifications;
+      if (isNotificationClaimActive(effectiveNotif)) return false;
       return shouldRetryTelegram(effectiveNotif) || shouldRetryEmail(effectiveNotif);
     });
 
@@ -1525,12 +1565,28 @@ async function retryPendingNotifications(force = false) {
     if (retryableLeads.length > 0) {
       console.log(`[notify:recovery] Найдено ${totalRetryable} заявок, обрабатываем пачку из ${totalBatchCount} (не вошло в пачку: ${unprocessedCount}).`);
       for (const lead of retryableLeads) {
-        if (activeRecoveryLeadIds.has(lead.leadId)) {
-          console.log(`[notify:recovery] Заявка ${lead.leadId} уже обрабатывается в активном потоке recovery, пропуск.`);
+        if (activeNotificationLeadIds.has(lead.leadId)) {
+          console.log(`[notify:recovery] Заявка ${lead.leadId} уже обрабатывается в активном потоке recovery/notifications, пропуск.`);
           batchUnresolvedRetryableCount++;
           continue;
         }
-        activeRecoveryLeadIds.add(lead.leadId);
+
+        const pendingPatchBefore = getUnpersistedNotificationPatch(lead.leadId, emergencyPatchesCache);
+        const currentNotifBefore = pendingPatchBefore ? { ...lead.notifications, ...pendingPatchBefore } : (lead.notifications || {});
+        if (isNotificationClaimActive(currentNotifBefore)) {
+          console.log(`[notify:recovery] Заявка ${lead.leadId} имеет активный lease claim, пропуск.`);
+          batchUnresolvedRetryableCount++;
+          continue;
+        }
+
+        activeNotificationLeadIds.add(lead.leadId);
+        const claimToken = crypto.randomBytes(4).toString('hex');
+        updateLeadNotificationStatus(lead.leadId, {
+          claim: {
+            token: claimToken,
+            expiresAt: Date.now() + NOTIFICATION_CLAIM_TIMEOUT_MS
+          }
+        });
 
         try {
           await runWithNotificationQueue(async () => {
@@ -1597,7 +1653,9 @@ async function retryPendingNotifications(force = false) {
             }
 
             const [tgSettled, emSettled] = await Promise.allSettled(tasks);
-            const patch = {};
+            const patch = {
+              claim: null
+            };
 
             if (tgSettled.status === 'fulfilled' && tgSettled.value) {
               const tgVal = tgSettled.value;
@@ -1658,9 +1716,10 @@ async function retryPendingNotifications(force = false) {
           });
         } catch (leadErr) {
           console.error(`[notify:recovery:lead-fail] Сбой при обработке заявки ${lead.leadId}:`, leadErr.message);
+          updateLeadNotificationStatus(lead.leadId, { claim: null });
           batchUnresolvedRetryableCount++;
         } finally {
-          activeRecoveryLeadIds.delete(lead.leadId);
+          activeNotificationLeadIds.delete(lead.leadId);
         }
       }
       console.log(`[notify:recovery] Повторная отправка пачки завершена (обработано: ${processedCount}).`);
@@ -1712,6 +1771,9 @@ app.TELEGRAM_REQUEST_TIMEOUT_MS = TELEGRAM_REQUEST_TIMEOUT_MS;
 app.unpersistedNotificationPatches = unpersistedNotificationPatches;
 app.getUnpersistedNotificationPatch = getUnpersistedNotificationPatch;
 app.activeRecoveryLeadIds = activeRecoveryLeadIds;
+app.activeNotificationLeadIds = activeNotificationLeadIds;
+app.isNotificationClaimActive = isNotificationClaimActive;
+app.NOTIFICATION_CLAIM_TIMEOUT_MS = NOTIFICATION_CLAIM_TIMEOUT_MS;
 app.enqueueUnpersistedNotificationPatch = enqueueUnpersistedNotificationPatch;
 app.flushUnpersistedNotificationPatches = flushUnpersistedNotificationPatches;
 app.loadEmergencyPatches = loadEmergencyPatches;
@@ -1724,5 +1786,6 @@ Object.defineProperty(app, 'MAX_RECOVERY_BATCH', {
 app.getRecoveryBatchSize = getRecoveryBatchSize;
 app.isEmergencyFileUnreadable = () => emergencyFileUnreadable;
 app.ALLOWED_ORIGIN_PATTERNS = ALLOWED_ORIGIN_PATTERNS;
+app.validateFileContent = validateFileContent;
 
 module.exports = app;

@@ -31,9 +31,10 @@ if [[ -f "${LEADS_FILE}" ]]; then
         chmod 600 "${BACKUP_DIR}/leads/leads_${DATE_TAG}.json.gz"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Резервная копия базы заявок создана: leads_${DATE_TAG}.json.gz"
     else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ВНИМАНИЕ: ${LEADS_FILE} поврежден или не является массивом! Бэкап сохранен с суффиксом .corrupted"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] ОШИБКА: ${LEADS_FILE} поврежден или не является массивом! Аварийный слепок сохранен с суффиксом .corrupted" >&2
         cp "${LEADS_FILE}" "${BACKUP_DIR}/leads/leads_${DATE_TAG}.corrupted.json"
         chmod 600 "${BACKUP_DIR}/leads/leads_${DATE_TAG}.corrupted.json"
+        exit 1
     fi
 else
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Файл ${LEADS_FILE} не найден, пропуск."

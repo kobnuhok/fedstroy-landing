@@ -1705,6 +1705,151 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.30. Защита от race condition (claim lease), гарантированное закрытие fd и обработка сбоев бэкапа', async () => {
+      // 1. Проверка fd leak в validateFileContent при исключении
+      const tmpTestFile = path.join(TEST_TMP_DIR, 'test-fd-leak.txt');
+      fs.writeFileSync(tmpTestFile, 'MZ-TEST-EXE-HEADER', 'utf8');
+
+      let closeSyncCalled = false;
+      const origCloseSync = fs.closeSync;
+      const origReadSync = fs.readSync;
+      fs.closeSync = (fd) => {
+        closeSyncCalled = true;
+        return origCloseSync(fd);
+      };
+      fs.readSync = () => {
+        throw new Error('Disk I/O error during read');
+      };
+
+      try {
+        const valRes = serverApp.validateFileContent(tmpTestFile, 'test.exe');
+        if (valRes.valid !== false) {
+          throw new Error('Ожидался valid: false при сбое чтения файла');
+        }
+        if (!closeSyncCalled) {
+          throw new Error('fs.closeSync не был вызван в блоке finally при исключении в fs.readSync');
+        }
+      } finally {
+        fs.closeSync = origCloseSync;
+        fs.readSync = origReadSync;
+        if (fs.existsSync(tmpTestFile)) {
+          try { fs.unlinkSync(tmpTestFile); } catch (_) {}
+        }
+      }
+
+      // 2. Проверка изоляции между foreground notifications и recovery sweep через claim lease
+      cleanTestData();
+      const now = Date.now();
+      const activeClaimLead = {
+        leadId: 'ФС-CLAIM-ACTIVE',
+        name: 'Активная заявка',
+        phone: '+7 (999) 111-22-33',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          claim: {
+            token: 'testtoken1',
+            expiresAt: now + 60000 // активен еще 60 секунд
+          },
+          updatedAt: new Date().toISOString()
+        }
+      };
+
+      const expiredClaimLead = {
+        leadId: 'ФС-CLAIM-EXPIRED',
+        name: 'Зависшая заявка с истекшим лизом',
+        phone: '+7 (999) 444-55-66',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          claim: {
+            token: 'testtoken2',
+            expiresAt: now - 1000 // истек 1 секунду назад
+          },
+          updatedAt: new Date().toISOString()
+        }
+      };
+
+      const inMemoryLockedLead = {
+        leadId: 'ФС-CLAIM-INMEMORY',
+        name: 'Заявка в процессе отправки в текущем процессе Node.js',
+        phone: '+7 (999) 777-88-99',
+        createdAt: new Date().toISOString(),
+        notifications: {
+          telegram: 'pending',
+          email: 'pending',
+          attempts: { telegram: 0, email: 0 },
+          updatedAt: new Date().toISOString()
+        }
+      };
+
+      fs.writeFileSync(DATA_FILE, JSON.stringify([activeClaimLead, expiredClaimLead, inMemoryLockedLead], null, 2), 'utf8');
+
+      // Добавляем inMemoryLockedLead в activeNotificationLeadIds
+      serverApp.activeNotificationLeadIds.add('ФС-CLAIM-INMEMORY');
+
+      const origSendTg = serverApp.sendToTelegram;
+      const origSendEm = serverApp.sendToEmail;
+      const processedLeadIds = [];
+      serverApp.sendToTelegram = (l) => {
+        processedLeadIds.push(l.leadId);
+        return Promise.resolve({ fullyDelivered: true, messageSent: true });
+      };
+      serverApp.sendToEmail = () => Promise.resolve({ sent: true });
+
+      try {
+        const recResult = await serverApp.retryPendingNotifications(true);
+        if (!recResult.success) {
+          throw new Error('retryPendingNotifications вернул success: false');
+        }
+
+        // Проверяем: только заявка с истекшим лизом должна была быть обработана
+        if (!processedLeadIds.includes('ФС-CLAIM-EXPIRED')) {
+          throw new Error('Заявка с истекшим lease claim не была подхвачена recovery sweep');
+        }
+        if (processedLeadIds.includes('ФС-CLAIM-ACTIVE')) {
+          throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ (RACE CONDITION): заявка с активным lease claim была повторно обработана recovery sweep!');
+        }
+        if (processedLeadIds.includes('ФС-CLAIM-INMEMORY')) {
+          throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ: заявка из activeNotificationLeadIds была повторно обработана recovery sweep!');
+        }
+
+        // Проверяем, что после успешной обработки claim в leads.json снят (claim: null)
+        const updatedLeads = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const expiredProcessed = updatedLeads.find(l => l.leadId === 'ФС-CLAIM-EXPIRED');
+        if (expiredProcessed.notifications.claim) {
+          throw new Error('После завершения попытки claim lease не был удален из notifications');
+        }
+        if (expiredProcessed.notifications.telegram !== 'sent' || expiredProcessed.notifications.email !== 'sent') {
+          throw new Error('Статусы не перешли в sent');
+        }
+      } finally {
+        serverApp.sendToTelegram = origSendTg;
+        serverApp.sendToEmail = origSendEm;
+        serverApp.activeNotificationLeadIds.delete('ФС-CLAIM-INMEMORY');
+        cleanTestData();
+      }
+
+      // 3. Проверка нейтрализованного текста для файлов > 20 МБ в sendToEmail
+      const serverSource = fs.readFileSync(path.resolve(__dirname, '..', 'server.js'), 'utf8');
+      if (serverSource.includes('направляется в Telegram-чат ПТО отдельным каналом')) {
+        throw new Error('В server.js осталась устаревшая формулировка об обязательной отправке файла в Telegram до получения фактического ответа Telegram');
+      }
+      if (!serverSource.includes('Файл превышает лимит email-вложения. Информация о файле сохранена в заявке; передача вложения выполняется отдельным каналом уведомлений.')) {
+        throw new Error('В server.js отсутствует актуализированный текст уведомления о превышении лимита email-вложения');
+      }
+
+      // 4. Проверка deploy/backup-leads.sh: скрипт должен завершаться с кодом 1 при невалидном leads.json
+      const backupScript = fs.readFileSync(path.resolve(__dirname, '..', 'deploy', 'backup-leads.sh'), 'utf8');
+      if (!backupScript.includes('exit 1')) {
+        throw new Error('deploy/backup-leads.sh не содержит exit 1 при обнаружении поврежденного leads.json');
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();
