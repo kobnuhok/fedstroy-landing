@@ -79,20 +79,48 @@ const MAX_UNPERSISTED_PATCHES = 1000;
 const EMERGENCY_PATCHES_FILE = () => path.join(DATA_DIR, 'unpersisted_patches_emergency.json');
 const unpersistedNotificationPatches = new Map();
 
-function getUnpersistedNotificationPatch(leadId) {
+function writeEmergencyFileAtomic(emergencyFile, data) {
+  const content = JSON.stringify(data, null, 2);
+  const tmpFile = `${emergencyFile}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`;
+  try {
+    fs.writeFileSync(tmpFile, content, 'utf8');
+    fs.renameSync(tmpFile, emergencyFile);
+    return true;
+  } catch (err) {
+    try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch (_) {}
+    throw err;
+  }
+}
+
+function loadEmergencyPatches() {
+  const emergencyFile = EMERGENCY_PATCHES_FILE();
+  if (!fs.existsSync(emergencyFile)) return {};
+  try {
+    const raw = fs.readFileSync(emergencyFile, 'utf8').trim();
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+    throw new Error('Некорректная структура JSON: ожидался объект');
+  } catch (err) {
+    const corruptFile = `${emergencyFile}.corrupt.${Date.now()}`;
+    console.error(`[lead:emergency:corrupt] Аварийный файл ${emergencyFile} поврежден (${err.message}). Переименование в ${corruptFile} для сохранения данных и ручного анализа.`);
+    try {
+      fs.renameSync(emergencyFile, corruptFile);
+    } catch (renameErr) {
+      console.error(`[lead:emergency:corrupt-rename-fail] Не удалось переименовать поврежденный файл: ${renameErr.message}`);
+    }
+    return {};
+  }
+}
+
+function getUnpersistedNotificationPatch(leadId, emergencyCache = null) {
   if (unpersistedNotificationPatches.has(leadId)) {
     return unpersistedNotificationPatches.get(leadId);
   }
-  const emergencyFile = EMERGENCY_PATCHES_FILE();
-  if (fs.existsSync(emergencyFile)) {
-    try {
-      const emergencyData = JSON.parse(fs.readFileSync(emergencyFile, 'utf8'));
-      if (emergencyData && emergencyData[leadId]) {
-        return emergencyData[leadId];
-      }
-    } catch (_) {}
-  }
-  return null;
+  const emergencyData = emergencyCache || loadEmergencyPatches();
+  return (emergencyData && emergencyData[leadId]) || null;
 }
 
 function enqueueUnpersistedNotificationPatch(leadId, patch) {
@@ -100,12 +128,9 @@ function enqueueUnpersistedNotificationPatch(leadId, patch) {
     console.error(`[lead:unpersisted-patches:emergency] Достигнут лимит буфера (${MAX_UNPERSISTED_PATCHES}). Аварийная запись во внешний fallback-файл.`);
     try {
       const emergencyFile = EMERGENCY_PATCHES_FILE();
-      let existingEmergency = {};
-      if (fs.existsSync(emergencyFile)) {
-        try { existingEmergency = JSON.parse(fs.readFileSync(emergencyFile, 'utf8')); } catch (_) {}
-      }
+      let existingEmergency = loadEmergencyPatches();
       existingEmergency[leadId] = { ...(existingEmergency[leadId] || {}), ...patch };
-      fs.writeFileSync(emergencyFile, JSON.stringify(existingEmergency, null, 2), 'utf8');
+      writeEmergencyFileAtomic(emergencyFile, existingEmergency);
       // При успешной записи в аварийный файл НЕ помещаем элемент в Map,
       // гарантируя жесткое соблюдение лимита unpersistedNotificationPatches.size <= MAX_UNPERSISTED_PATCHES
       return;
@@ -124,15 +149,7 @@ function enqueueUnpersistedNotificationPatch(leadId, patch) {
 
 function flushUnpersistedNotificationPatches() {
   const emergencyFile = EMERGENCY_PATCHES_FILE();
-  let emergencyData = {};
-  if (fs.existsSync(emergencyFile)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(emergencyFile, 'utf8'));
-      if (parsed && typeof parsed === 'object') {
-        emergencyData = parsed;
-      }
-    } catch (_) {}
-  }
+  let emergencyData = loadEmergencyPatches();
 
   const allLeadIds = new Set([
     ...unpersistedNotificationPatches.keys(),
@@ -166,7 +183,7 @@ function flushUnpersistedNotificationPatches() {
   // Если диск все еще недоступен, сохраняем несохраненные данные в аварийном файле для защиты от краша Node/PM2.
   if (Object.keys(emergencyData).length > 0) {
     try {
-      fs.writeFileSync(emergencyFile, JSON.stringify(emergencyData, null, 2), 'utf8');
+      writeEmergencyFileAtomic(emergencyFile, emergencyData);
     } catch (_) {}
   } else if (fs.existsSync(emergencyFile) && allSaved) {
     try {
@@ -992,19 +1009,38 @@ app.get('/api/health', (req, res) => {
 });
 
 app.all(['/api/internal/retry', '/api/internal/recovery'], async (req, res) => {
-  const cronSecret = process.env.CRON_SECRET;
-  if (process.env.NODE_ENV !== 'test') {
-    if (cronSecret) {
-      const authHeader = req.headers.authorization || '';
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    } else if (!req.headers['x-internal-token']) {
-      return res.status(403).json({ error: 'Forbidden' });
+  // Разрешаем только GET (для Vercel Cron) и POST (для Admin / Webhook / CI/CD)
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  const cronSecret = process.env.CRON_SECRET || process.env.INTERNAL_RECOVERY_TOKEN;
+  if (!cronSecret) {
+    // В боевом окружении: если секрет не сконфигурирован — endpoint закрыт (Fail-Closed)
+    if (process.env.NODE_ENV !== 'test') {
+      return res.status(503).json({ error: 'Recovery endpoint is not configured (CRON_SECRET missing)' });
+    }
+  } else {
+    // Если секрет задан — проверяем строгое соответствие токена (Bearer, x-internal-token или ?token=)
+    const authHeader = req.headers.authorization || '';
+    const internalHeader = req.headers['x-internal-token'] || '';
+    const queryToken = (req.query && req.query.token) || '';
+    const isAuthorized =
+      authHeader === `Bearer ${cronSecret}` ||
+      internalHeader === cronSecret ||
+      queryToken === cronSecret;
+
+    if (!isAuthorized) {
+      return res.status(401).json({ error: 'Unauthorized: invalid recovery secret' });
     }
   }
+
   await retryPendingNotifications(true);
-  res.json({ success: true, timestamp: new Date().toISOString() });
+  res.json({
+    success: true,
+    runtime: isVercel ? 'vercel-serverless-ephemeral' : 'persistent-vps',
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.post('/api/lead', leadRateLimiter, (req, res, next) => {
@@ -1411,8 +1447,11 @@ async function retryPendingNotifications(force = false) {
     const leads = JSON.parse(content);
     if (!Array.isArray(leads)) return;
 
+    // Загружаем аварийные патчи ОДИН раз для всего прохода recovery sweep (без повторного парсинга на каждой заявке)
+    const emergencyPatchesCache = loadEmergencyPatches();
+
     const retryableLeads = leads.filter(l => {
-      const pendingPatch = getUnpersistedNotificationPatch(l.leadId);
+      const pendingPatch = getUnpersistedNotificationPatch(l.leadId, emergencyPatchesCache);
       const effectiveNotif = pendingPatch ? { ...l.notifications, ...pendingPatch } : l.notifications;
       return shouldRetryTelegram(effectiveNotif) || shouldRetryEmail(effectiveNotif);
     });
@@ -1428,7 +1467,7 @@ async function retryPendingNotifications(force = false) {
 
         try {
           await runWithNotificationQueue(async () => {
-            const pendingPatch = getUnpersistedNotificationPatch(lead.leadId);
+            const pendingPatch = getUnpersistedNotificationPatch(lead.leadId, emergencyPatchesCache);
             const effectiveNotif = pendingPatch ? { ...lead.notifications, ...pendingPatch } : (lead.notifications || {});
             const effectiveLead = { ...lead, notifications: effectiveNotif };
 
@@ -1580,5 +1619,7 @@ app.getUnpersistedNotificationPatch = getUnpersistedNotificationPatch;
 app.activeRecoveryLeadIds = activeRecoveryLeadIds;
 app.enqueueUnpersistedNotificationPatch = enqueueUnpersistedNotificationPatch;
 app.flushUnpersistedNotificationPatches = flushUnpersistedNotificationPatches;
+app.loadEmergencyPatches = loadEmergencyPatches;
+app.writeEmergencyFileAtomic = writeEmergencyFileAtomic;
 
 module.exports = app;

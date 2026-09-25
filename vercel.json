@@ -10,6 +10,12 @@
     { "src": "css/**", "use": "@vercel/static" },
     { "src": "js/**", "use": "@vercel/static" }
   ],
+  "crons": [
+    {
+      "path": "/api/internal/recovery",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
     { "src": "/(data|uploads|src|blocks|test|deploy|scripts|node_modules)(/.*)?", "status": 404 },

@@ -14,6 +14,7 @@ const DATA_FILE = path.join(TEST_DATA_DIR, 'leads.json');
 const UPLOADS_DIR = TEST_UPLOADS_DIR;
 const TEST_PORT = 8991;
 const BASE_URL = `http://localhost:${TEST_PORT}`;
+const serverApp = require('../server');
 
 function startServer(port, extraEnv = {}) {
   return new Promise((resolve, reject) => {
@@ -1278,6 +1279,147 @@ async function runAllTests() {
         if (fs.existsSync(testFilePath)) {
           try { fs.unlinkSync(testFilePath); } catch (_) {}
         }
+      }
+    });
+
+    await testCase('6.23. Авторизация recovery: Fail-Closed при отсутствии CRON_SECRET, проверка Bearer токена и блокировка недопустимых методов (405)', async () => {
+      // 1. Метод PUT должен возвращать 405 Method Not Allowed
+      const putRes = await fetch(`${BASE_URL}/api/internal/recovery`, { method: 'PUT' });
+      if (putRes.status !== 405) {
+        throw new Error(`Ожидался статус 405 для метода PUT, получено: ${putRes.status}`);
+      }
+
+      // 2. Проверяем Fail-Closed в production, когда CRON_SECRET не задан -> 503
+      let unconfiguredProc = null;
+      try {
+        unconfiguredProc = await startServer(8993, { NODE_ENV: 'production', CRON_SECRET: '', INTERNAL_RECOVERY_TOKEN: '' });
+        const res503 = await fetch('http://localhost:8993/api/internal/recovery', { method: 'POST' });
+        if (res503.status !== 503) {
+          throw new Error(`Ожидался статус 503 при незаданном CRON_SECRET в production, получено: ${res503.status}`);
+        }
+      } finally {
+        if (unconfiguredProc) unconfiguredProc.kill();
+      }
+
+      // 3. Запускаем сервер с CRON_SECRET и проверяем авторизацию
+      let authServerProc = null;
+      try {
+        authServerProc = await startServer(8992, { CRON_SECRET: 'super-secret-cron-key-123' });
+        const AUTH_URL = 'http://localhost:8992';
+
+        // Без заголовка авторизации -> 401
+        const unauthRes = await fetch(`${AUTH_URL}/api/internal/recovery`, { method: 'POST' });
+        if (unauthRes.status !== 401) {
+          throw new Error(`Ожидался статус 401 при отсутствии токена, получено: ${unauthRes.status}`);
+        }
+
+        // С неверным токеном -> 401
+        const badRes = await fetch(`${AUTH_URL}/api/internal/recovery`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer wrong-key' }
+        });
+        if (badRes.status !== 401) {
+          throw new Error(`Ожидался статус 401 при неверном токене, получено: ${badRes.status}`);
+        }
+
+        // С заголовком x-internal-token с несовпадающим значением -> 401 (защита от старого fail-open бага)
+        const fakeHeaderRes = await fetch(`${AUTH_URL}/api/internal/recovery`, {
+          method: 'POST',
+          headers: { 'x-internal-token': 'garbage-attempt' }
+        });
+        if (fakeHeaderRes.status !== 401) {
+          throw new Error(`Ожидался статус 401 при несовпадающем x-internal-token, получено: ${fakeHeaderRes.status}`);
+        }
+
+        // С правильным Bearer-токеном (GET для Vercel Cron) -> 200
+        const okGetRes = await fetch(`${AUTH_URL}/api/internal/recovery`, {
+          method: 'GET',
+          headers: { 'Authorization': 'Bearer super-secret-cron-key-123' }
+        });
+        if (okGetRes.status !== 200) {
+          throw new Error(`Ожидался статус 200 при валидном Bearer GET (Vercel cron), получено: ${okGetRes.status}`);
+        }
+        const okGetData = await okGetRes.json();
+        if (!okGetData.success) {
+          throw new Error('Ожидался success: true в ответе recovery');
+        }
+
+        // С правильным Bearer-токеном через POST -> 200
+        const okPostRes = await fetch(`${AUTH_URL}/api/internal/recovery`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer super-secret-cron-key-123' }
+        });
+        if (okPostRes.status !== 200) {
+          throw new Error(`Ожидался статус 200 при валидном Bearer POST, получено: ${okPostRes.status}`);
+        }
+      } finally {
+        if (authServerProc) authServerProc.kill();
+      }
+    });
+
+    await testCase('6.24. Защита emergency-файла: поврежденный JSON не удаляется, а изолируется в .corrupt для анализа, а запись производится атомарно', async () => {
+      const emergencyFile = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+
+      // 1. Создаем поврежденный emergency-файл (симулируем обрыв питания / невалидный JSON)
+      const corruptedContent = '{"FS-CORRUPT-001": { status: "broken" invalid json...';
+      fs.writeFileSync(emergencyFile, corruptedContent, 'utf8');
+
+      // 2. Вызываем загрузку патчей
+      const loaded = serverApp.loadEmergencyPatches();
+      if (Object.keys(loaded).length !== 0) {
+        throw new Error('При поврежденном файле loadEmergencyPatches должен возвращать пустой объект fallback');
+      }
+
+      // 3. Проверяем, что исходный поврежденный файл НЕ исчез бесследно, а был переименован в .corrupt.*
+      const dataFiles = fs.readdirSync(TEST_DATA_DIR);
+      const corruptFiles = dataFiles.filter(f => f.startsWith('unpersisted_patches_emergency.json.corrupt.'));
+      if (corruptFiles.length === 0) {
+        throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ: поврежденный emergency-файл был удален или не был сохранен в .corrupt!');
+      }
+
+      // Содержимое corrupt-файла совпадает с исходным
+      const savedCorruptContent = fs.readFileSync(path.join(TEST_DATA_DIR, corruptFiles[0]), 'utf8');
+      if (savedCorruptContent !== corruptedContent) {
+        throw new Error('Содержимое изолированного corrupt-файла не совпадает с исходным!');
+      }
+
+      // Чистим corrupt файл
+      fs.unlinkSync(path.join(TEST_DATA_DIR, corruptFiles[0]));
+
+      // 4. Проверяем атомарную запись
+      serverApp.writeEmergencyFileAtomic(emergencyFile, { 'FS-ATOM-001': { telegram: 'sent' } });
+      const readBack = JSON.parse(fs.readFileSync(emergencyFile, 'utf8'));
+      if (readBack['FS-ATOM-001']?.telegram !== 'sent') {
+        throw new Error('Атомарная запись emergency-файла не сохранила данные');
+      }
+      if (fs.existsSync(emergencyFile)) {
+        fs.unlinkSync(emergencyFile);
+      }
+    });
+
+    await testCase('6.25. Производительность recovery: кэширование emergency-патчей за один проход без повторного I/O диска', async () => {
+      const emergencyFile = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+      const testLeadId = 'ФС-CACHE-TEST-001';
+      const initialPatch = { telegram: 'sent', email: 'sent' };
+
+      fs.writeFileSync(emergencyFile, JSON.stringify({ [testLeadId]: initialPatch }, null, 2), 'utf8');
+
+      // Создаем кэш один раз
+      const cache = serverApp.loadEmergencyPatches();
+
+      // Удаляем файл с диска, имитируя завершение flush или временную недоступность
+      fs.unlinkSync(emergencyFile);
+
+      // Запрос патча с передачей кэша возвращает данные из памяти без обращения к диску
+      const cachedResult = serverApp.getUnpersistedNotificationPatch(testLeadId, cache);
+      if (!cachedResult || cachedResult.telegram !== 'sent') {
+        throw new Error('getUnpersistedNotificationPatch не использовал переданный кэш emergency-патчей');
+      }
+
+      // Запрос без кэша при отсутствующем файле возвращает null
+      const nonCachedResult = serverApp.getUnpersistedNotificationPatch(testLeadId);
+      if (nonCachedResult !== null) {
+        throw new Error('Без кэша и при отсутствии файла должен возвращаться null');
       }
     });
 
