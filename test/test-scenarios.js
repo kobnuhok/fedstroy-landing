@@ -201,6 +201,39 @@ async function runAllTests() {
       }
     });
 
+    await testCase('2.4. Безопасность: поврежденный .zip файл (бинарный мусор вместо сигнатуры PK)', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест Bad ZIP');
+      fd.append('phone', '+7 (916) 555-66-77');
+      fd.append('agreement', 'on');
+      const badZip = new Blob([Buffer.from('НЕ_ZIP_АРХИВ_12345')], { type: 'application/zip' });
+      fd.append('attachment', badZip, 'corrupted.zip');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 400) throw new Error(`Ожидался 400, получен ${res.status}`);
+      const json = await res.json();
+      if (!json.error || !json.error.toLowerCase().includes('.zip')) {
+        throw new Error(`Ожидалось сообщение об ошибке .zip: ${json.error}`);
+      }
+    });
+
+    await testCase('2.5. Безопасность: валидный .zip архив (сигнатура PK\\x03\\x04) успешно принимается', async () => {
+      const fd = new FormData();
+      fd.append('name', 'Тест Valid ZIP');
+      fd.append('phone', '+7 (916) 555-66-77');
+      fd.append('agreement', 'on');
+      // Стандартный минимальный ZIP заголовок PK\x03\x04
+      const validZip = new Blob([Buffer.from([0x50, 0x4B, 0x03, 0x04, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00])], { type: 'application/zip' });
+      fd.append('attachment', validZip, 'project.zip');
+
+      const res = await fetch(`${BASE_URL}/api/lead`, { method: 'POST', body: fd });
+      if (res.status !== 200) throw new Error(`Ожидался 200, получен ${res.status}`);
+      const json = await res.json();
+      if (!json.success || !json.leadId) {
+        throw new Error(`Ожидался успешный ответ с leadId: ${JSON.stringify(json)}`);
+      }
+    });
+
     // -------------------------------------------------------------
     // БЛОК 3: Повторная отправка и защита от перезаписи файлов
     // -------------------------------------------------------------

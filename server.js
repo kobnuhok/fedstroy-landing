@@ -368,6 +368,17 @@ function validateFileContent(filePath, originalName) {
       }
     }
 
+    // 5. Проверка ZIP (сигнатура архива: PK\x03\x04, либо пустой архив PK\x05\x06, либо spanned архив PK\x07\x08)
+    if (ext === '.zip') {
+      const isZip = bytesRead >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4B &&
+        ((buffer[2] === 0x03 && buffer[3] === 0x04) ||
+         (buffer[2] === 0x05 && buffer[3] === 0x06) ||
+         (buffer[2] === 0x07 && buffer[3] === 0x08));
+      if (!isZip) {
+        return { valid: false, error: 'Файл с расширением .zip поврежден или не содержит корректного заголовка ZIP-архива (PK).' };
+      }
+    }
+
     return { valid: true };
   } catch (err) {
     return { valid: false, error: `Ошибка проверки файла: ${err.message}` };
