@@ -1322,13 +1322,21 @@ async function runAllTests() {
           throw new Error(`Ожидался статус 401 при неверном токене, получено: ${badRes.status}`);
         }
 
-        // С заголовком x-internal-token с несовпадающим значением -> 401 (защита от старого fail-open бага)
+        // С токеном в URL query ?token= -> 401 (защита от утечки секрета через URL и access-логи)
+        const queryTokenRes = await fetch(`${AUTH_URL}/api/internal/recovery?token=super-secret-cron-key-123`, {
+          method: 'POST'
+        });
+        if (queryTokenRes.status !== 401) {
+          throw new Error(`Ожидался статус 401 при передаче токена в query параметре, получено: ${queryTokenRes.status}`);
+        }
+
+        // С токеном через кастомный заголовок x-internal-token -> 401 (разрешен ТОЛЬКО стандартный Authorization: Bearer)
         const fakeHeaderRes = await fetch(`${AUTH_URL}/api/internal/recovery`, {
           method: 'POST',
-          headers: { 'x-internal-token': 'garbage-attempt' }
+          headers: { 'x-internal-token': 'super-secret-cron-key-123' }
         });
         if (fakeHeaderRes.status !== 401) {
-          throw new Error(`Ожидался статус 401 при несовпадающем x-internal-token, получено: ${fakeHeaderRes.status}`);
+          throw new Error(`Ожидался статус 401 при передаче токена через x-internal-token, получено: ${fakeHeaderRes.status}`);
         }
 
         // С правильным Bearer-токеном (GET для Vercel Cron) -> 200
@@ -1340,8 +1348,8 @@ async function runAllTests() {
           throw new Error(`Ожидался статус 200 при валидном Bearer GET (Vercel cron), получено: ${okGetRes.status}`);
         }
         const okGetData = await okGetRes.json();
-        if (!okGetData.success) {
-          throw new Error('Ожидался success: true в ответе recovery');
+        if (!okGetData.success || okGetData.processed === undefined) {
+          throw new Error('Ожидался success: true и поле processed в ответе recovery');
         }
 
         // С правильным Bearer-токеном через POST -> 200
@@ -1351,6 +1359,25 @@ async function runAllTests() {
         });
         if (okPostRes.status !== 200) {
           throw new Error(`Ожидался статус 200 при валидном Bearer POST, получено: ${okPostRes.status}`);
+        }
+
+        // Проверка распространения ошибок: если leads.json поврежден, recovery возвращает 500, а не ложный 200
+        const origContent = fs.readFileSync(DATA_FILE, 'utf8');
+        try {
+          fs.writeFileSync(DATA_FILE, 'NOT_VALID_JSON', 'utf8');
+          const errRes = await fetch(`${AUTH_URL}/api/internal/recovery`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer super-secret-cron-key-123' }
+          });
+          if (errRes.status !== 500) {
+            throw new Error(`Ожидался статус 500 при фатальном сбое recovery, получено: ${errRes.status}`);
+          }
+          const errData = await errRes.json();
+          if (errData.error !== 'Recovery failed') {
+            throw new Error(`Ожидалась ошибка 'Recovery failed', получено: ${JSON.stringify(errData)}`);
+          }
+        } finally {
+          fs.writeFileSync(DATA_FILE, origContent, 'utf8');
         }
       } finally {
         if (authServerProc) authServerProc.kill();
@@ -1420,6 +1447,84 @@ async function runAllTests() {
       const nonCachedResult = serverApp.getUnpersistedNotificationPatch(testLeadId);
       if (nonCachedResult !== null) {
         throw new Error('Без кэша и при отсутствии файла должен возвращаться null');
+      }
+    });
+
+    await testCase('6.26. Ограничение пачки recovery (MAX_RECOVERY_BATCH): обработка пачками с фиксацией remaining заявок', async () => {
+      cleanTestData();
+      const leads = [];
+      for (let i = 1; i <= 25; i++) {
+        leads.push({
+          leadId: `ФС-BATCH-${String(i).padStart(3, '0')}`,
+          name: `Клиент ${i}`,
+          phone: '+7 (916) 111-22-33',
+          source: 'Тест',
+          createdAt: new Date().toISOString(),
+          notifications: {
+            telegram: 'failed',
+            email: 'failed',
+            attempts: { telegram: 1, email: 1 },
+            updatedAt: new Date().toISOString()
+          },
+          file: null
+        });
+      }
+      fs.writeFileSync(DATA_FILE, JSON.stringify(leads, null, 2), 'utf8');
+
+      const origSendTelegram = serverApp.sendToTelegram;
+      const origSendEmail = serverApp.sendToEmail;
+      serverApp.sendToTelegram = () => Promise.resolve({ fullyDelivered: true, messageSent: true });
+      serverApp.sendToEmail = () => Promise.resolve({ sent: true });
+
+      try {
+        const result = await serverApp.retryPendingNotifications(true);
+        if (!result.success) {
+          throw new Error(`Ожидался success: true, получено: ${JSON.stringify(result)}`);
+        }
+        if (result.processed !== 20) {
+          throw new Error(`Ожидалось processed === 20 (лимит пачки), получено: ${result.processed}`);
+        }
+        if (result.remaining !== 5) {
+          throw new Error(`Ожидалось remaining === 5, получено: ${result.remaining}`);
+        }
+      } finally {
+        serverApp.sendToTelegram = origSendTelegram;
+        serverApp.sendToEmail = origSendEmail;
+        cleanTestData();
+      }
+    });
+
+    await testCase('6.27. Обработка сбоя переименования emergency-файла: файл не удаляется при ошибке fs.renameSync', async () => {
+      const emergencyFile = path.join(TEST_DATA_DIR, 'unpersisted_patches_emergency.json');
+      const corruptedContent = '{ invalid json content cannot parse';
+      fs.writeFileSync(emergencyFile, corruptedContent, 'utf8');
+
+      // Имитируем ошибку файловой системы при renameSync (например, файл занят другим процессом / EBUSY)
+      const origRename = fs.renameSync;
+      fs.renameSync = () => {
+        const err = new Error('EBUSY: resource busy or locked, rename');
+        err.code = 'EBUSY';
+        throw err;
+      };
+
+      try {
+        // flush пытается прочитать файл, поймает ошибку renameSync, взведет флаг emergencyFileUnreadable
+        serverApp.flushUnpersistedNotificationPatches();
+
+        // Проверяем, что исходный поврежденный emergency-файл НЕ был удален
+        if (!fs.existsSync(emergencyFile)) {
+          throw new Error('КРИТИЧЕСКИЙ ДЕФЕКТ: аварийный файл был удален, несмотря на сбой переименования!');
+        }
+
+        const remainingContent = fs.readFileSync(emergencyFile, 'utf8');
+        if (remainingContent !== corruptedContent) {
+          throw new Error('Содержимое аварийного файла изменилось!');
+        }
+      } finally {
+        fs.renameSync = origRename;
+        if (fs.existsSync(emergencyFile)) {
+          try { fs.unlinkSync(emergencyFile); } catch (_) {}
+        }
       }
     });
 

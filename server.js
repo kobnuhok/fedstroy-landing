@@ -92,14 +92,20 @@ function writeEmergencyFileAtomic(emergencyFile, data) {
   }
 }
 
+let emergencyFileUnreadable = false;
+
 function loadEmergencyPatches() {
   const emergencyFile = EMERGENCY_PATCHES_FILE();
-  if (!fs.existsSync(emergencyFile)) return {};
+  if (!fs.existsSync(emergencyFile)) {
+    emergencyFileUnreadable = false;
+    return {};
+  }
   try {
     const raw = fs.readFileSync(emergencyFile, 'utf8').trim();
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      emergencyFileUnreadable = false;
       return parsed;
     }
     throw new Error('Некорректная структура JSON: ожидался объект');
@@ -108,7 +114,9 @@ function loadEmergencyPatches() {
     console.error(`[lead:emergency:corrupt] Аварийный файл ${emergencyFile} поврежден (${err.message}). Переименование в ${corruptFile} для сохранения данных и ручного анализа.`);
     try {
       fs.renameSync(emergencyFile, corruptFile);
+      emergencyFileUnreadable = false;
     } catch (renameErr) {
+      emergencyFileUnreadable = true;
       console.error(`[lead:emergency:corrupt-rename-fail] Не удалось переименовать поврежденный файл: ${renameErr.message}`);
     }
     return {};
@@ -157,10 +165,10 @@ function flushUnpersistedNotificationPatches() {
   ]);
 
   if (allLeadIds.size === 0) {
-    if (fs.existsSync(emergencyFile)) {
+    if (fs.existsSync(emergencyFile) && !emergencyFileUnreadable) {
       try { fs.unlinkSync(emergencyFile); } catch (_) {}
     }
-    return true;
+    return !emergencyFileUnreadable;
   }
 
   let allSaved = true;
@@ -185,13 +193,13 @@ function flushUnpersistedNotificationPatches() {
     try {
       writeEmergencyFileAtomic(emergencyFile, emergencyData);
     } catch (_) {}
-  } else if (fs.existsSync(emergencyFile) && allSaved) {
+  } else if (fs.existsSync(emergencyFile) && allSaved && !emergencyFileUnreadable) {
     try {
       fs.unlinkSync(emergencyFile);
     } catch (_) {}
   }
 
-  return allSaved;
+  return allSaved && !emergencyFileUnreadable;
 }
 
 if (process.env.NODE_ENV !== 'test') {
@@ -1021,23 +1029,30 @@ app.all(['/api/internal/retry', '/api/internal/recovery'], async (req, res) => {
       return res.status(503).json({ error: 'Recovery endpoint is not configured (CRON_SECRET missing)' });
     }
   } else {
-    // Если секрет задан — проверяем строгое соответствие токена (Bearer, x-internal-token или ?token=)
+    // Строгая аутентификация только через заголовок Authorization: Bearer <secret>
+    // Исключаем ?token= и произвольные кастомные заголовки для предотвращения утечек в access-логи и proxy
     const authHeader = req.headers.authorization || '';
-    const internalHeader = req.headers['x-internal-token'] || '';
-    const queryToken = (req.query && req.query.token) || '';
-    const isAuthorized =
-      authHeader === `Bearer ${cronSecret}` ||
-      internalHeader === cronSecret ||
-      queryToken === cronSecret;
-
-    if (!isAuthorized) {
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return res.status(401).json({ error: 'Unauthorized: invalid recovery secret' });
     }
   }
 
-  await retryPendingNotifications(true);
+  const result = await retryPendingNotifications(true);
+  if (!result || result.success === false) {
+    return res.status(500).json({
+      error: 'Recovery failed',
+      details: result?.error || 'System error during recovery',
+      processed: result?.processed || 0,
+      runtime: isVercel ? 'vercel-serverless-ephemeral' : 'persistent-vps',
+      timestamp: new Date().toISOString()
+    });
+  }
+
   res.json({
     success: true,
+    processed: result.processed || 0,
+    totalBatch: result.totalBatch || 0,
+    remaining: result.remaining || 0,
     runtime: isVercel ? 'vercel-serverless-ephemeral' : 'persistent-vps',
     timestamp: new Date().toISOString()
   });
@@ -1427,37 +1442,58 @@ function shouldRetryEmail(notif) {
 const activeRecoveryLeadIds = new Set();
 let isRecoveryRunning = false;
 
+const MAX_RECOVERY_BATCH = parseInt(process.env.RECOVERY_BATCH_SIZE, 10) || 20;
+
 // Повторная отправка недоставленных уведомлений при старте сервера или по крону
 async function retryPendingNotifications(force = false) {
-  if (!force && (process.env.NODE_ENV === 'test' && !process.env.TEST_ENABLE_STARTUP_RETRY) || (!force && isVercel)) return;
-  if (!fs.existsSync(DATA_FILE)) return;
+  if (!force && (process.env.NODE_ENV === 'test' && !process.env.TEST_ENABLE_STARTUP_RETRY) || (!force && isVercel)) {
+    return { success: true, skipped: true, reason: 'startup retry disabled' };
+  }
+  if (!fs.existsSync(DATA_FILE)) {
+    return { success: true, processed: 0, totalBatch: 0, remaining: 0 };
+  }
 
   if (isRecoveryRunning) {
     console.log('[notify:recovery] Пропуск: recovery sweep уже выполняется.');
-    return;
+    return { success: true, skipped: true, reason: 'recovery sweep already running' };
   }
   isRecoveryRunning = true;
+
+  let processedCount = 0;
+  let totalBatchCount = 0;
+  let remainingCount = 0;
 
   // Синхронизируем накопившиеся отложенные патчи перед чтением с диска
   flushUnpersistedNotificationPatches();
 
   try {
     const content = fs.readFileSync(DATA_FILE, 'utf8').trim();
-    if (!content) return;
+    if (!content) {
+      return { success: true, processed: 0, totalBatch: 0, remaining: 0 };
+    }
     const leads = JSON.parse(content);
-    if (!Array.isArray(leads)) return;
+    if (!Array.isArray(leads)) {
+      throw new Error('leads.json is not a valid JSON array');
+    }
 
     // Загружаем аварийные патчи ОДИН раз для всего прохода recovery sweep (без повторного парсинга на каждой заявке)
     const emergencyPatchesCache = loadEmergencyPatches();
 
-    const retryableLeads = leads.filter(l => {
+    const allRetryableLeads = leads.filter(l => {
       const pendingPatch = getUnpersistedNotificationPatch(l.leadId, emergencyPatchesCache);
       const effectiveNotif = pendingPatch ? { ...l.notifications, ...pendingPatch } : l.notifications;
       return shouldRetryTelegram(effectiveNotif) || shouldRetryEmail(effectiveNotif);
     });
 
+    const totalRetryable = allRetryableLeads.length;
+    // Ограничиваем размер пачки за один проход (MAX_RECOVERY_BATCH = 20),
+    // чтобы serverless functions (Vercel) не падали по таймауту при большом объеме накопившихся заявок
+    const retryableLeads = allRetryableLeads.slice(0, MAX_RECOVERY_BATCH);
+    totalBatchCount = retryableLeads.length;
+    remainingCount = Math.max(0, totalRetryable - totalBatchCount);
+
     if (retryableLeads.length > 0) {
-      console.log(`[notify:recovery] Найдено ${retryableLeads.length} заявок для повторной отправки (pending/failed/partial).`);
+      console.log(`[notify:recovery] Найдено ${totalRetryable} заявок, обрабатываем пачку из ${totalBatchCount} (остаток: ${remainingCount}).`);
       for (const lead of retryableLeads) {
         if (activeRecoveryLeadIds.has(lead.leadId)) {
           console.log(`[notify:recovery] Заявка ${lead.leadId} уже обрабатывается в активном потоке recovery, пропуск.`);
@@ -1583,15 +1619,31 @@ async function retryPendingNotifications(force = false) {
                 if (fs.existsSync(fileAttachment.path)) fs.unlinkSync(fileAttachment.path);
               } catch (_) {}
             }
+
+            processedCount++;
           });
         } finally {
           activeRecoveryLeadIds.delete(lead.leadId);
         }
       }
-      console.log(`[notify:recovery] Повторная отправка завершена.`);
+      console.log(`[notify:recovery] Повторная отправка пачки завершена (обработано: ${processedCount}).`);
     }
+
+    return {
+      success: true,
+      processed: processedCount,
+      totalBatch: totalBatchCount,
+      remaining: remainingCount
+    };
   } catch (err) {
     console.error('[notify:recovery:error] Ошибка при повторной отправке заявок:', err.message);
+    return {
+      success: false,
+      error: err.message,
+      processed: processedCount,
+      totalBatch: totalBatchCount,
+      remaining: remainingCount
+    };
   } finally {
     isRecoveryRunning = false;
   }
@@ -1621,5 +1673,7 @@ app.enqueueUnpersistedNotificationPatch = enqueueUnpersistedNotificationPatch;
 app.flushUnpersistedNotificationPatches = flushUnpersistedNotificationPatches;
 app.loadEmergencyPatches = loadEmergencyPatches;
 app.writeEmergencyFileAtomic = writeEmergencyFileAtomic;
+app.MAX_RECOVERY_BATCH = MAX_RECOVERY_BATCH;
+app.isEmergencyFileUnreadable = () => emergencyFileUnreadable;
 
 module.exports = app;
