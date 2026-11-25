@@ -152,3 +152,22 @@
     padding: 1rem !important;
   }
 }
+
+/* ==========================================================================
+   Компенсация высоты закреплённой шапки при якорной прокрутке
+   ========================================================================== */
+section[id] {
+  scroll-margin-top: 5.75rem;
+}
+
+@media (min-width: 640px) {
+  section[id] {
+    scroll-margin-top: 6.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  section[id] {
+    scroll-margin-top: 9rem;
+  }
+}

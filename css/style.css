@@ -7,10 +7,11 @@
     scroll-behavior: smooth;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-text-size-adjust: 100%;
+    overflow-x: clip;
   }
 
   body {
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   /* Безопасные переносы длинных слов и защита от вылезания текста из карточек */
@@ -80,8 +81,10 @@ input[type="range"]::-moz-range-thumb {
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.gallery-item:hover .gallery-zoom {
-  transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .gallery-item:hover .gallery-zoom {
+    transform: scale(1.05);
+  }
 }
 
 /* ==========================================================================
@@ -161,4 +164,41 @@ input[type="range"]::-moz-range-thumb {
 
 .animate-status-pulse {
   animation: status-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Modal & Lightbox animations */
+@keyframes fade-in-backdrop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-backdrop-in:not(.hidden) {
+  animation: fade-in-backdrop 200ms ease-out forwards;
+}
+
+.animate-in.fade-in {
+  animation: fade-in-scale var(--animate-duration, 200ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-in.fade-in.duration-200 {
+  --animate-duration: 200ms;
+}
+
+.animate-in.fade-in.duration-300 {
+  --animate-duration: 300ms;
 }

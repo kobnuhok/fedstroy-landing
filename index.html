@@ -55,43 +55,43 @@
       <div class="flex items-center justify-between h-20 sm:h-24">
         
         <!-- Logo -->
-        <a href="#" class="flex items-center gap-3.5 group">
-          <div class="w-12 h-12 bg-surface-900 rounded-xl flex items-center justify-center text-brand-500 shadow-sm border border-slate-700 group-hover:border-brand-500 transition-colors">
-            <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <a href="#" class="flex items-center gap-3 group shrink-0">
+          <div class="w-11 h-11 xl:w-12 xl:h-12 bg-surface-900 rounded-xl flex items-center justify-center text-brand-500 shadow-sm border border-slate-700 group-hover:border-brand-500 transition-colors shrink-0">
+            <svg class="w-6 h-6 xl:w-7 xl:h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
               <polyline points="2 17 12 22 22 17"></polyline>
               <polyline points="2 12 12 17 22 12"></polyline>
             </svg>
           </div>
           <div>
-            <span class="font-heading text-xl sm:text-2xl font-black tracking-tight text-slate-900 block leading-tight">ФЕДСТРОЙ</span>
-            <span class="text-[11px] sm:text-xs font-semibold text-slate-500 tracking-wider uppercase block">Фасадные &amp; Напольные системы</span>
+            <span class="font-heading text-lg xl:text-xl font-black tracking-tight text-slate-900 block leading-tight">ФЕДСТРОЙ</span>
+            <span class="text-[10px] xl:text-[11px] font-semibold text-slate-500 tracking-wider uppercase block">Фасадные &amp; Напольные системы</span>
           </div>
         </a>
 
         <!-- Desktop Menu Links -->
-        <nav class="hidden lg:flex items-center gap-5 xl:gap-7 2xl:gap-9 text-sm xl:text-base font-semibold text-slate-700">
+        <nav class="hidden lg:flex items-center gap-2.5 xl:gap-3.5 2xl:gap-6 text-xs xl:text-[13px] 2xl:text-sm font-semibold text-slate-700 whitespace-nowrap">
           <a href="#about" class="hover:text-brand-600 transition-colors">О компании</a>
           <a href="#services" class="hover:text-brand-600 transition-colors">Услуги</a>
-          <a href="#quiz" class="hover:text-brand-600 transition-colors flex items-center gap-1.5 text-brand-600 font-bold bg-brand-50 px-3 py-1.5 rounded-xl border border-brand-200">
+          <a href="#quiz" class="hover:text-brand-600 transition-colors flex items-center gap-1.5 text-brand-600 font-bold bg-brand-50 px-2.5 py-1 rounded-xl border border-brand-200">
             <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
             Квиз-смета
           </a>
           <a href="#calculator" class="hover:text-brand-600 transition-colors">Калькулятор</a>
           <a href="#systems" class="hover:text-brand-600 transition-colors">Подсистемы</a>
-          <a href="#portfolio" class="hover:text-brand-600 transition-colors">Объекты (фото)</a>
+          <a href="#portfolio" class="hover:text-brand-600 transition-colors">Объекты</a>
           <a href="#compliance" class="hover:text-brand-600 transition-colors">СРО и ГОСТ</a>
           <a href="./requisites.html" class="hover:text-brand-600 transition-colors">Реквизиты</a>
           <a href="#contacts" class="hover:text-brand-600 transition-colors">Контакты</a>
         </nav>
 
         <!-- Phone & Action -->
-        <div class="hidden sm:flex items-center gap-4 xl:gap-6">
-          <div class="text-right">
-            <a href="tel:+78007000223" class="block font-heading font-extrabold text-slate-900 text-lg xl:text-xl hover:text-brand-600 transition-colors leading-tight">8 (800) 700-02-23</a>
-            <span class="text-xs text-slate-500 block">Бесплатный звонок по РФ</span>
+        <div class="hidden sm:flex items-center gap-3 xl:gap-4 shrink-0">
+          <div class="text-right whitespace-nowrap">
+            <a href="tel:+78007000223" class="block font-heading font-extrabold text-slate-900 text-base xl:text-lg hover:text-brand-600 transition-colors leading-tight">8 (800) 700-02-23</a>
+            <span class="text-[11px] text-slate-500 block">Бесплатный звонок по РФ</span>
           </div>
-          <button type="button" class="js-open-modal px-5 py-3 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-sm font-bold rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 cursor-pointer">
+          <button type="button" class="js-open-modal px-4 py-2.5 xl:px-5 xl:py-3 bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-xs xl:text-sm font-bold rounded-xl shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 cursor-pointer whitespace-nowrap">
             Запрос расчета КП
           </button>
         </div>
@@ -1779,7 +1779,7 @@
 
   <!-- Плавающий виджет оперативной связи -->
   <div id="floating-dock" class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
-    <div id="dock-menu" class="floating-dock-menu hidden-menu absolute bottom-16 right-0 w-80 bg-slate-900 border border-slate-700/80 rounded-3xl p-5 shadow-2xl text-white mb-2">
+    <div id="dock-menu" class="floating-dock-menu hidden-menu absolute bottom-16 right-0 w-[min(20rem,calc(100vw-2rem))] bg-slate-900 border border-slate-700/80 rounded-3xl p-5 shadow-2xl text-white mb-2">
       
       <div class="flex items-center gap-3 pb-3 mb-3 border-b border-slate-800">
         <div class="relative">
@@ -1858,8 +1858,8 @@
   
   <!-- blocks/modals.html -->
 <!-- Модальное окно: Запрос коммерческого предложения и расчет КМД -->
-  <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200">
+  <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-slate-950/70 backdrop-blur-sm modal-backdrop-in" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="bg-white rounded-3xl max-w-lg w-full max-h-[90dvh] overflow-y-auto my-auto p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200">
       
       <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1922,8 +1922,8 @@
 
 
   <!-- Модальное окно: Заказ обратного звонка инженера -->
-  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Обратный звонок инженера">
-    <div class="relative max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200">
+  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-slate-950/70 backdrop-blur-sm modal-backdrop-in" role="dialog" aria-modal="true" aria-label="Обратный звонок инженера">
+    <div class="relative max-w-md w-full max-h-[90dvh] overflow-y-auto my-auto bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 animate-in fade-in duration-200">
       
       <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1975,14 +1975,14 @@
 
 
   <!-- Полноэкранный просмотр фотографий объектов (Lightbox) -->
-  <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-md transition-all" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
-    <div class="relative max-w-5xl w-full flex flex-col items-center">
-      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none cursor-pointer" aria-label="Закрыть">
+  <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-950/90 backdrop-blur-md modal-backdrop-in" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
+    <div class="relative max-w-5xl w-full max-h-[92dvh] my-auto flex flex-col items-center animate-in fade-in duration-200">
+      <button type="button" class="js-close-lightbox self-end mb-2 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none cursor-pointer" aria-label="Закрыть">
         <span class="text-xs font-semibold">Закрыть (Esc)</span>
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
-      <div class="w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800">
-        <img id="lightbox-img" src="" alt="Фотография объекта" class="w-full max-h-[75vh] object-contain mx-auto bg-black">
+      <div class="w-full bg-slate-900 rounded-3xl overflow-y-auto shadow-2xl border border-slate-800">
+        <img id="lightbox-img" src="" alt="Фотография объекта" class="w-full max-h-[68dvh] object-contain mx-auto bg-black">
         <div class="p-6 bg-surface-900 border-t border-slate-800 text-white">
           <h3 id="lightbox-title" class="font-heading text-lg sm:text-xl font-bold"></h3>
           <p id="lightbox-desc" class="text-xs sm:text-sm text-slate-400 mt-1"></p>

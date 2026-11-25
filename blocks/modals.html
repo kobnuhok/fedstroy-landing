@@ -1,6 +1,6 @@
 <!-- Модальное окно: Запрос коммерческого предложения и расчет КМД -->
-  <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200">
+  <div id="lead-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-slate-950/70 backdrop-blur-sm modal-backdrop-in" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="bg-white rounded-3xl max-w-lg w-full max-h-[90dvh] overflow-y-auto my-auto p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in duration-200">
       
       <button type="button" class="js-close-modal absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -63,8 +63,8 @@
 
 
   <!-- Модальное окно: Заказ обратного звонка инженера -->
-  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Обратный звонок инженера">
-    <div class="relative max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200">
+  <div id="callback-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-slate-950/70 backdrop-blur-sm modal-backdrop-in" role="dialog" aria-modal="true" aria-label="Обратный звонок инженера">
+    <div class="relative max-w-md w-full max-h-[90dvh] overflow-y-auto my-auto bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 animate-in fade-in duration-200">
       
       <button type="button" class="js-close-callback absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-2 rounded-xl focus:outline-none cursor-pointer" aria-label="Закрыть">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -116,14 +116,14 @@
 
 
   <!-- Полноэкранный просмотр фотографий объектов (Lightbox) -->
-  <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/90 backdrop-blur-md transition-all" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
-    <div class="relative max-w-5xl w-full flex flex-col items-center">
-      <button type="button" class="js-close-lightbox absolute -top-12 right-0 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none cursor-pointer" aria-label="Закрыть">
+  <div id="lightbox-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-950/90 backdrop-blur-md modal-backdrop-in" role="dialog" aria-modal="true" aria-label="Просмотр фотографии">
+    <div class="relative max-w-5xl w-full max-h-[92dvh] my-auto flex flex-col items-center animate-in fade-in duration-200">
+      <button type="button" class="js-close-lightbox self-end mb-2 text-white hover:text-brand-400 p-2 rounded-xl text-sm flex items-center gap-1.5 focus:outline-none cursor-pointer" aria-label="Закрыть">
         <span class="text-xs font-semibold">Закрыть (Esc)</span>
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
-      <div class="w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800">
-        <img id="lightbox-img" src="" alt="Фотография объекта" class="w-full max-h-[75vh] object-contain mx-auto bg-black">
+      <div class="w-full bg-slate-900 rounded-3xl overflow-y-auto shadow-2xl border border-slate-800">
+        <img id="lightbox-img" src="" alt="Фотография объекта" class="w-full max-h-[68dvh] object-contain mx-auto bg-black">
         <div class="p-6 bg-surface-900 border-t border-slate-800 text-white">
           <h3 id="lightbox-title" class="font-heading text-lg sm:text-xl font-bold"></h3>
           <p id="lightbox-desc" class="text-xs sm:text-sm text-slate-400 mt-1"></p>

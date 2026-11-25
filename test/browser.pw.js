@@ -202,3 +202,91 @@ test('mobile: отправка заявки через мобильный инт
   await expect(successId).toBeVisible({ timeout: 8000 });
   await expect(successId).toContainText('ФС-');
 });
+
+// ============================================================
+// ВИЗУАЛЬНЫЕ И CSS-РЕГРЕССИОННЫЕ ПРОВЕРКИ (1440, 1280, 768, 393, 320 px)
+// ============================================================
+
+for (const width of [1440, 1280, 768, 393, 320]) {
+  test(`visual (${width}px): отсутствие переполнения, .page-container и плавающее меню`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Выполняется в desktop-конфигурации с явным viewport');
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    // 1. Нет горизонтального скролла
+    const overflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth
+    }));
+    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+
+    // 2. .page-container центрирован и имеет горизонтальные отступы
+    const containerStyle = await page.locator('.page-container').first().evaluate(el => {
+      const s = getComputedStyle(el);
+      return {
+        paddingLeft: parseFloat(s.paddingLeft),
+        paddingRight: parseFloat(s.paddingRight),
+        maxWidth: s.maxWidth
+      };
+    });
+    expect(containerStyle.paddingLeft).toBeGreaterThan(0);
+    expect(containerStyle.paddingRight).toBeGreaterThan(0);
+
+    // 3. Плавающее меню скрыто по умолчанию и помещается в экран при открытии
+    const dockMenu = page.locator('#dock-menu');
+    await expect(dockMenu).toHaveClass(/hidden-menu/);
+    const hiddenOpacity = await dockMenu.evaluate(el => getComputedStyle(el).opacity);
+    expect(parseFloat(hiddenOpacity)).toBe(0);
+
+    await page.locator('#dock-trigger').click();
+    await expect(dockMenu).toHaveClass(/visible-menu/);
+    const dockBox = await dockMenu.boundingBox();
+    expect(dockBox).not.toBeNull();
+    expect(dockBox.x).toBeGreaterThanOrEqual(0);
+    expect(dockBox.x + dockBox.width).toBeLessThanOrEqual(width + 1);
+  });
+}
+
+test('desktop: визуальные состояния квиза, якорный отступ, фильтр галереи, lightbox и модалки', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Тест для десктопа');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  // 1. Стартовая синхронизация карточек квиза
+  const defaultFacadeBtn = page.locator('.js-quiz-type-btn[data-type="facade"]');
+  await expect(defaultFacadeBtn).toHaveClass(/quiz-card-selected/);
+
+  // 2. Отступ якорной прокрутки под sticky-шапку
+  await page.locator('nav a[href="#calculator"]').first().click();
+  const scrollOffsets = await page.evaluate(() => {
+    const header = document.querySelector('header');
+    const calc = document.querySelector('#calculator');
+    return {
+      headerHeight: header.getBoundingClientRect().height,
+      scrollMarginTop: parseFloat(getComputedStyle(calc).scrollMarginTop),
+      calcTop: calc.getBoundingClientRect().top
+    };
+  });
+  expect(scrollOffsets.scrollMarginTop).toBeGreaterThanOrEqual(scrollOffsets.headerHeight - 5);
+
+  // 3. Фильтр галереи и Lightbox
+  await page.locator('.js-portfolio-filter[data-filter="falshpol"]').click();
+  const hiddenFacadeCards = await page.locator('.js-portfolio-item[data-category="facade"].hidden').count();
+  expect(hiddenFacadeCards).toBeGreaterThan(0);
+
+  await page.locator('.js-portfolio-item[data-category="falshpol"]').first().click();
+  const lightbox = page.locator('#lightbox-modal');
+  await expect(lightbox).not.toHaveClass(/hidden/);
+  await page.locator('.js-close-lightbox').first().click();
+  await expect(lightbox).toHaveClass(/hidden/);
+
+  // 4. Модальное окно имеет внутреннюю прокрутку на низком экране
+  await page.setViewportSize({ width: 393, height: 480 });
+  await page.locator('.js-open-modal:visible').first().click();
+  const leadModal = page.locator('#lead-modal');
+  await expect(leadModal).not.toHaveClass(/hidden/);
+  const modalCardOverflow = await leadModal.locator('> div').evaluate(el => getComputedStyle(el).overflowY);
+  expect(['auto', 'scroll']).toContain(modalCardOverflow);
+  await page.locator('.js-close-modal').first().click();
+  await expect(leadModal).toHaveClass(/hidden/);
+});

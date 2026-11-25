@@ -390,6 +390,22 @@
       });
     }
   
+    function syncInitialSelections() {
+      quizSection.querySelectorAll('.js-quiz-type-btn').forEach(btn => {
+        btn.classList.toggle('quiz-card-selected', btn.getAttribute('data-type') === quizState.type);
+      });
+      quizSection.querySelectorAll('.js-quiz-building-btn').forEach(btn => {
+        btn.classList.toggle('quiz-card-selected', btn.getAttribute('data-building') === quizState.building);
+      });
+      quizSection.querySelectorAll('.js-quiz-area-card').forEach(btn => {
+        btn.classList.toggle('quiz-card-selected', parseInt(btn.getAttribute('data-area'), 10) === quizState.area);
+      });
+      if (quizAreaInput) {
+        quizAreaInput.value = quizState.area;
+      }
+    }
+  
+    syncInitialSelections();
     updateQuizUI();
   }
   
