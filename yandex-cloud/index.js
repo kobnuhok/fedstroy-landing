@@ -21,6 +21,7 @@ const MAX_EMAIL_ATTACHMENT_SIZE = 20 * 1024 * 1024;
 const TELEGRAM_TIMEOUT_MS = 8000;
 const EMAIL_TIMEOUT_MS = 6000;
 const TELEGRAM_API_HOST = process.env.TELEGRAM_API_HOST || 'api.telegram.org';
+const TELEGRAM_RELAY_SECRET = process.env.TELEGRAM_RELAY_SECRET || '';
 
 function getCorsHeaders(origin) {
   const allowOrigin = (origin && ALLOWED_ORIGINS.some(re => re.test(origin)))
@@ -166,11 +167,15 @@ function validatePayload(fields) {
 
 function requestTelegram(apiPath, headers, body) {
   return new Promise((resolve, reject) => {
+    const reqHeaders = { ...headers };
+    if (TELEGRAM_RELAY_SECRET) {
+      reqHeaders['X-Relay-Secret'] = TELEGRAM_RELAY_SECRET;
+    }
     const req = https.request({
       host: TELEGRAM_API_HOST,
       path: apiPath,
       method: 'POST',
-      headers,
+      headers: reqHeaders,
       timeout: TELEGRAM_TIMEOUT_MS
     }, (res) => {
       let raw = '';
