@@ -86,7 +86,9 @@
       fibrocement: { baseMin: 2700, baseMax: 3900, label: 'Фиброцементные плиты' },
       hpl: { baseMin: 3800, baseMax: 5600, label: 'HPL-панели' },
       falshpol_chipboard: { baseMin: 2500, baseMax: 3600, label: 'Фальшпол ДСП 38 мм' },
-      falshpol_sulfate: { baseMin: 3400, baseMax: 4900, label: 'Фальшпол Сульфат кальция' }
+      falshpol_sulfate: { baseMin: 3400, baseMax: 4900, label: 'Фальшпол Сульфат кальция' },
+      complex_kera_chipboard: { baseMin: 4300, baseMax: 6200, label: 'Керамогранит + Фальшпол ДСП 38 мм' },
+      complex_akp_sulfate: { baseMin: 5800, baseMax: 8400, label: 'АКП Композит + Фальшпол Сульфат кальция' }
     };
   
     // Базовая стоимость металлической подсистемы (кронштейны, профили, кляммеры, термопрокладки)
@@ -150,6 +152,24 @@
           materialSelect.innerHTML = `
             <option value="falshpol_chipboard">Фальшпол: плиты ДСП 38 мм (БЦ и офисы)</option>
             <option value="falshpol_sulfate">Фальшпол: сульфат кальция 30–36 мм (ЦОД и серверные)</option>
+          `;
+        } else if (e.target.value === 'complex') {
+          materialSelect.innerHTML = `
+            <optgroup label="Комплекс: Фасад + Фальшпол">
+              <option value="complex_kera_chipboard">Керамогранит + Фальшпол ДСП 38 мм</option>
+              <option value="complex_akp_sulfate">АКП Композит + Фальшпол Сульфат кальция</option>
+            </optgroup>
+            <optgroup label="Облицовка фасада (НВФ)">
+              <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
+              <option value="composite">Алюминиевый композит (АКП 4 мм / 0.4)</option>
+              <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
+              <option value="fibrocement">Фиброцементные панели (окрашенные в массе)</option>
+              <option value="hpl">HPL-панели (ламинат высокого давления)</option>
+            </optgroup>
+            <optgroup label="Фальшпол (БЦ и ЦОД)">
+              <option value="falshpol_chipboard">Фальшпол: плиты ДСП 38 мм (БЦ и офисы)</option>
+              <option value="falshpol_sulfate">Фальшпол: сульфат кальция 30–36 мм (ЦОД и серверные)</option>
+            </optgroup>
           `;
         } else {
           materialSelect.innerHTML = `

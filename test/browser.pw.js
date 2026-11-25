@@ -274,6 +274,11 @@ test('desktop: визуальные состояния квиза, якорны�
   await expect(preset250).toHaveCSS('background-color', 'rgb(234, 88, 12)');
   await expect(preset250).toHaveCSS('color', 'rgb(255, 255, 255)');
 
+  // 1c. Выбор «Комплекс (под ключ)» добавляет в список материалы фальшпола и комплексные наборы
+  await page.locator('label:has(input[name="system-type"][value="complex"])').click();
+  const complexOptionsCount = await page.locator('#calc-material option[value^="complex_"], #calc-material option[value^="falshpol_"]').count();
+  expect(complexOptionsCount).toBeGreaterThanOrEqual(4);
+
   // 2. Отступ якорной прокрутки под sticky-шапку
   await page.locator('nav a[href="#calculator"]').first().click();
   const scrollOffsets = await page.evaluate(() => {
