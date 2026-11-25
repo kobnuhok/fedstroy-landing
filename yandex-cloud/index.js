@@ -18,7 +18,8 @@ const ALLOWED_ORIGINS = [
 
 const ALLOWED_EXTS = new Set(['.dwg', '.pdf', '.zip', '.rar', '.7z', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg']);
 const MAX_EMAIL_ATTACHMENT_SIZE = 20 * 1024 * 1024;
-const TELEGRAM_TIMEOUT_MS = 15000;
+const TELEGRAM_TIMEOUT_MS = 6000;
+const EMAIL_TIMEOUT_MS = 5000;
 
 function getCorsHeaders(origin) {
   const allowOrigin = (origin && ALLOWED_ORIGINS.some(re => re.test(origin)))
@@ -248,8 +249,9 @@ async function sendEmail(lead, file) {
     port: parseInt(process.env.SMTP_PORT || '465', 10),
     secure: process.env.SMTP_SECURE !== 'false',
     auth: { user, pass },
-    connectionTimeout: 10000,
-    socketTimeout: 15000
+    connectionTimeout: EMAIL_TIMEOUT_MS,
+    greetingTimeout: EMAIL_TIMEOUT_MS,
+    socketTimeout: EMAIL_TIMEOUT_MS
   });
 
   const mailOptions = {
@@ -263,7 +265,10 @@ async function sendEmail(lead, file) {
     mailOptions.attachments = [{ filename: file.originalName, content: file.buffer }];
   }
 
-  const info = await transporter.sendMail(mailOptions);
+  const info = await Promise.race([
+    transporter.sendMail(mailOptions),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), EMAIL_TIMEOUT_MS))
+  ]);
   return { sent: true, messageId: info.messageId };
 }
 
@@ -328,13 +333,24 @@ exports.handler = async (event) => {
       sendEmail(lead, file)
     ]);
 
+    const tgVal = tgRes.status === 'fulfilled' ? tgRes.value : { sent: false, error: tgRes.reason?.message };
+    const emVal = emRes.status === 'fulfilled' ? emRes.value : { sent: false, error: emRes.reason?.message };
+
+    if (!tgVal.sent && !emVal.sent && process.env.NODE_ENV !== 'test') {
+      console.error('[yc:lead:delivery-failed]', { tgVal, emVal });
+      return jsonResponse(502, {
+        success: false,
+        error: `Не удалось доставить уведомление (${tgVal.error || tgVal.reason || emVal.error || 'таймаут'}).`
+      }, origin);
+    }
+
     return jsonResponse(200, {
       success: true,
       leadId,
       message: 'Заявка зарегистрирована. Мы свяжемся с вами в рабочее время.',
       ...(process.env.NODE_ENV === 'test' ? {
-        telegram: tgRes.status === 'fulfilled' ? tgRes.value : { sent: false },
-        email: emRes.status === 'fulfilled' ? emRes.value : { sent: false }
+        telegram: tgVal,
+        email: emVal
       } : {})
     }, origin);
   } catch (err) {
