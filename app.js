@@ -66,10 +66,18 @@
     const areaSlider = document.getElementById('calc-area');
     const areaValue = document.getElementById('calc-area-val');
     const systemTypeRadios = document.querySelectorAll('input[name="system-type"]');
+  
+    const facadeGroup = document.getElementById('calc-facade-group');
     const materialSelect = document.getElementById('calc-material');
     const metalRadios = document.querySelectorAll('input[name="subsystem-metal"]');
+  
+    const falshpolGroup = document.getElementById('calc-falshpol-group');
+    const falshpolSelect = document.getElementById('calc-falshpol-material');
+    const falshpolSubsystemRadios = document.querySelectorAll('input[name="falshpol-subsystem"]');
+  
     const installCheckbox = document.getElementById('calc-install');
     const insulationCheckbox = document.getElementById('calc-insulation');
+    const insulationWrap = document.getElementById('calc-insulation-wrap');
   
     const totalMinEl = document.getElementById('calc-total-min');
     const totalMaxEl = document.getElementById('calc-total-max');
@@ -78,25 +86,35 @@
     const breakdownSubsystemEl = document.getElementById('calc-breakdown-subsystem');
     const breakdownCladdingEl = document.getElementById('calc-breakdown-cladding');
   
-    // Базовые диапазоны цен на облицовку и плиты (руб/м²)
-    const materialPricing = {
+    const facadeCladdingPricing = {
       keramogranit: { baseMin: 1800, baseMax: 2600, label: 'Керамогранит 600×600' },
       composite: { baseMin: 2400, baseMax: 3500, label: 'Алюминиевый композит (АКП)' },
       metalkassety: { baseMin: 2100, baseMax: 3000, label: 'Металлокассеты' },
       fibrocement: { baseMin: 2700, baseMax: 3900, label: 'Фиброцементные плиты' },
-      hpl: { baseMin: 3800, baseMax: 5600, label: 'HPL-панели' },
-      falshpol_chipboard: { baseMin: 2500, baseMax: 3600, label: 'Фальшпол ДСП 38 мм' },
-      falshpol_sulfate: { baseMin: 3400, baseMax: 4900, label: 'Фальшпол Сульфат кальция' },
-      complex_kera_chipboard: { baseMin: 4300, baseMax: 6200, label: 'Керамогранит + Фальшпол ДСП 38 мм' },
-      complex_akp_sulfate: { baseMin: 5800, baseMax: 8400, label: 'АКП Композит + Фальшпол Сульфат кальция' }
+      hpl: { baseMin: 3800, baseMax: 5600, label: 'HPL-панели' }
     };
   
-    // Базовая стоимость металлической подсистемы (кронштейны, профили, кляммеры, термопрокладки)
-    const subsystemBasePerMeter = {
+    const facadeSubsystemPricing = {
       galvanized: { min: 850, max: 1150, name: 'Оцинкованная сталь 1.2 мм' },
       aluminum: { min: 1250, max: 1650, name: 'Алюминиевый профиль АД31Т1' },
       stainless: { min: 1850, max: 2450, name: 'Нержавеющая сталь AISI 430/304' }
     };
+  
+    const falshpolSlabPricing = {
+      falshpol_chipboard: { baseMin: 1900, baseMax: 2700, label: 'Фальшпол ДСП 38 мм' },
+      falshpol_sulfate: { baseMin: 2600, baseMax: 3700, label: 'Фальшпол Сульфат кальция' }
+    };
+  
+    const falshpolSubsystemPricing = {
+      standard: { min: 600, max: 900, name: 'Стойки стандарт' },
+      reinforced: { min: 950, max: 1400, name: 'Усиленная подсистема ЦОД' }
+    };
+  
+    function getSelectedRadio(radios, fallback) {
+      let val = fallback;
+      radios.forEach(r => { if (r.checked) val = r.value; });
+      return val;
+    }
   
     function updateCalculator() {
       if (!areaSlider) return;
@@ -104,31 +122,60 @@
       const area = parseInt(areaSlider.value, 10);
       if (areaValue) areaValue.textContent = area.toLocaleString('ru-RU');
   
-      let selectedSystem = 'facade';
-      systemTypeRadios.forEach(r => { if (r.checked) selectedSystem = r.value; });
+      const selectedSystem = getSelectedRadio(systemTypeRadios, 'facade');
+      const includeFacade = selectedSystem === 'facade' || selectedSystem === 'complex';
+      const includeFalshpol = selectedSystem === 'falshpol' || selectedSystem === 'complex';
   
-      let selectedMetal = 'galvanized';
-      metalRadios.forEach(r => { if (r.checked) selectedMetal = r.value; });
+      if (facadeGroup) facadeGroup.classList.toggle('hidden', !includeFacade);
+      if (falshpolGroup) falshpolGroup.classList.toggle('hidden', !includeFalshpol);
+      if (insulationWrap) insulationWrap.classList.toggle('hidden', !includeFacade);
   
-      const materialKey = materialSelect ? materialSelect.value : 'keramogranit';
-      const materialData = materialPricing[materialKey] || materialPricing.keramogranit;
-      const subData = subsystemBasePerMeter[selectedMetal] || subsystemBasePerMeter.galvanized;
+      const facadeMat = facadeCladdingPricing[materialSelect ? materialSelect.value : 'keramogranit'] || facadeCladdingPricing.keramogranit;
+      const facadeSub = facadeSubsystemPricing[getSelectedRadio(metalRadios, 'galvanized')] || facadeSubsystemPricing.galvanized;
   
-      // Дополнительные опции
-      const insulationCost = (insulationCheckbox && insulationCheckbox.checked) ? 550 : 0;
-      const installCost = (installCheckbox && installCheckbox.checked) ? 1450 : 0;
+      const floorMat = falshpolSlabPricing[falshpolSelect ? falshpolSelect.value : 'falshpol_chipboard'] || falshpolSlabPricing.falshpol_chipboard;
+      const floorSub = falshpolSubsystemPricing[getSelectedRadio(falshpolSubsystemRadios, 'standard')] || falshpolSubsystemPricing.standard;
   
-      // Расчет стоимости за 1 м²
-      const perMeterMin = subData.min + materialData.baseMin + insulationCost + installCost;
-      const perMeterMax = subData.max + materialData.baseMax + insulationCost + installCost;
+      const insulationCost = (includeFacade && insulationCheckbox && insulationCheckbox.checked) ? 550 : 0;
+      const installPerSystem = (installCheckbox && installCheckbox.checked) ? 1450 : 0;
   
-      // Общий ориентировочный бюджет
+      let subMin = 0;
+      let subMax = 0;
+      let matMin = 0;
+      let matMax = 0;
+      let installCost = 0;
+      const subNames = [];
+      const matNames = [];
+  
+      if (includeFacade) {
+        subMin += facadeSub.min;
+        subMax += facadeSub.max;
+        matMin += facadeMat.baseMin;
+        matMax += facadeMat.baseMax;
+        installCost += installPerSystem;
+        subNames.push(facadeSub.name);
+        matNames.push(facadeMat.label);
+      }
+  
+      if (includeFalshpol) {
+        subMin += floorSub.min;
+        subMax += floorSub.max;
+        matMin += floorMat.baseMin;
+        matMax += floorMat.baseMax;
+        installCost += installPerSystem;
+        subNames.push(floorSub.name);
+        matNames.push(floorMat.label);
+      }
+  
+      const perMeterMin = subMin + matMin + insulationCost + installCost;
+      const perMeterMax = subMax + matMax + insulationCost + installCost;
+  
       const totalMin = perMeterMin * area;
       const totalMax = perMeterMax * area;
   
-      // Сроки поставки и монтажа по нормам ПТО
-      const workDaysMin = Math.max(7, Math.round(area / 65));
-      const workDaysMax = Math.max(10, Math.round(area / 45));
+      const daysFactor = selectedSystem === 'complex' ? 1.35 : 1;
+      const workDaysMin = Math.max(7, Math.round((area / 65) * daysFactor));
+      const workDaysMax = Math.max(10, Math.round((area / 45) * daysFactor));
   
       if (totalMinEl) totalMinEl.textContent = totalMin.toLocaleString('ru-RU') + ' ₽';
       if (totalMaxEl) totalMaxEl.textContent = totalMax.toLocaleString('ru-RU') + ' ₽';
@@ -136,59 +183,23 @@
       if (durationEl) durationEl.textContent = `${workDaysMin}–${workDaysMax} раб. дней`;
   
       if (breakdownSubsystemEl) {
-        breakdownSubsystemEl.textContent = `от ${(subData.min * area).toLocaleString('ru-RU')} ₽ (${subData.name})`;
+        breakdownSubsystemEl.textContent = `от ${(subMin * area).toLocaleString('ru-RU')} ₽ (${subNames.join(' + ')})`;
       }
       if (breakdownCladdingEl) {
-        breakdownCladdingEl.textContent = `от ${(materialData.baseMin * area).toLocaleString('ru-RU')} ₽ (${materialData.label})`;
+        breakdownCladdingEl.textContent = `от ${(matMin * area).toLocaleString('ru-RU')} ₽ (${matNames.join(' + ')})`;
       }
     }
   
     areaSlider.addEventListener('input', updateCalculator);
     if (materialSelect) materialSelect.addEventListener('change', updateCalculator);
+    if (falshpolSelect) falshpolSelect.addEventListener('change', updateCalculator);
   
-    systemTypeRadios.forEach(r => r.addEventListener('change', (e) => {
-      if (materialSelect) {
-        if (e.target.value === 'falshpol') {
-          materialSelect.innerHTML = `
-            <option value="falshpol_chipboard">Фальшпол: плиты ДСП 38 мм (БЦ и офисы)</option>
-            <option value="falshpol_sulfate">Фальшпол: сульфат кальция 30–36 мм (ЦОД и серверные)</option>
-          `;
-        } else if (e.target.value === 'complex') {
-          materialSelect.innerHTML = `
-            <optgroup label="Комплекс: Фасад + Фальшпол">
-              <option value="complex_kera_chipboard">Керамогранит + Фальшпол ДСП 38 мм</option>
-              <option value="complex_akp_sulfate">АКП Композит + Фальшпол Сульфат кальция</option>
-            </optgroup>
-            <optgroup label="Облицовка фасада (НВФ)">
-              <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
-              <option value="composite">Алюминиевый композит (АКП 4 мм / 0.4)</option>
-              <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
-              <option value="fibrocement">Фиброцементные панели (окрашенные в массе)</option>
-              <option value="hpl">HPL-панели (ламинат высокого давления)</option>
-            </optgroup>
-            <optgroup label="Фальшпол (БЦ и ЦОД)">
-              <option value="falshpol_chipboard">Фальшпол: плиты ДСП 38 мм (БЦ и офисы)</option>
-              <option value="falshpol_sulfate">Фальшпол: сульфат кальция 30–36 мм (ЦОД и серверные)</option>
-            </optgroup>
-          `;
-        } else {
-          materialSelect.innerHTML = `
-            <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
-            <option value="composite">Алюминиевый композит (АКП 4 мм / 0.4)</option>
-            <option value="metalkassety">Металлокассеты открытого/закрытого типа</option>
-            <option value="fibrocement">Фиброцементные панели (окрашенные в массе)</option>
-            <option value="hpl">HPL-панели (ламинат высокого давления)</option>
-          `;
-        }
-      }
-      updateCalculator();
-    }));
-  
+    systemTypeRadios.forEach(r => r.addEventListener('change', updateCalculator));
     metalRadios.forEach(r => r.addEventListener('change', updateCalculator));
+    falshpolSubsystemRadios.forEach(r => r.addEventListener('change', updateCalculator));
     if (installCheckbox) installCheckbox.addEventListener('change', updateCalculator);
     if (insulationCheckbox) insulationCheckbox.addEventListener('change', updateCalculator);
   
-    // Кнопки типовых площадей
     document.querySelectorAll('.js-area-preset').forEach(btn => {
       btn.addEventListener('click', () => {
         const targetVal = parseInt(btn.getAttribute('data-area'), 10);

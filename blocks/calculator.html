@@ -12,10 +12,10 @@
         </p>
       </div>
 
-      <div class="grid md:grid-cols-2 lg:grid-cols-12 gap-6 md:gap-8 xl:gap-12 items-start">
+      <div class="grid md:grid-cols-2 lg:grid-cols-12 gap-6 md:gap-8 xl:gap-10 items-start">
         
         <!-- Элементы управления калькулятором -->
-        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 2xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-7">
+        <div class="lg:col-span-7 2xl:col-span-7 bg-surface-50 p-6 sm:p-10 xl:p-12 rounded-3xl border border-slate-200 shadow-sm space-y-7">
           
           <!-- 1. Тип системы -->
           <div>
@@ -60,10 +60,10 @@
             </div>
           </div>
 
-          <!-- 3. Материал и металл -->
-          <div class="grid sm:grid-cols-2 gap-6">
+          <!-- 3. Фасад: материал и металл подсистемы -->
+          <div id="calc-facade-group" class="grid sm:grid-cols-2 gap-6 pt-2 border-t border-slate-200">
             <div>
-              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">3. Материал облицовки</label>
+              <label for="calc-material" class="block text-sm font-bold text-slate-900 mb-2">Материал облицовки фасада</label>
               <select id="calc-material" class="w-full p-3.5 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
                 <option value="keramogranit">Керамогранит (600×600, 1200×600 мм)</option>
                 <option value="composite">Алюминиевый композит (АКП)</option>
@@ -74,7 +74,7 @@
             </div>
 
             <div>
-              <label class="block text-sm font-bold text-slate-900 mb-2">4. Металл подсистемы</label>
+              <label class="block text-sm font-bold text-slate-900 mb-2">Металл подсистемы фасада</label>
               <div class="grid grid-cols-3 gap-2 text-xs sm:text-sm">
                 <label class="cursor-pointer">
                   <input type="radio" name="subsystem-metal" value="galvanized" class="peer sr-only" checked>
@@ -98,11 +98,40 @@
             </div>
           </div>
 
+          <!-- 4. Фальшпол: плиты и подсистема пола -->
+          <div id="calc-falshpol-group" class="hidden grid sm:grid-cols-2 gap-6 pt-2 border-t border-slate-200">
+            <div>
+              <label for="calc-falshpol-material" class="block text-sm font-bold text-slate-900 mb-2">Тип плит фальшпола</label>
+              <select id="calc-falshpol-material" class="w-full p-3.5 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 shadow-sm">
+                <option value="falshpol_chipboard">ДСП высокой плотности 38 мм (БЦ и офисы)</option>
+                <option value="falshpol_sulfate">Сульфат кальция 30–36 мм (ЦОД и серверные)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-bold text-slate-900 mb-2">Подсистема фальшпола</label>
+              <div class="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                <label class="cursor-pointer">
+                  <input type="radio" name="falshpol-subsystem" value="standard" class="peer sr-only" checked>
+                  <div class="p-3 text-center rounded-xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 font-semibold transition-all">
+                    Стойки стандарт
+                  </div>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="falshpol-subsystem" value="reinforced" class="peer sr-only">
+                  <div class="p-3 text-center rounded-xl border-2 border-slate-200 bg-white peer-checked:border-brand-600 peer-checked:bg-brand-50/50 peer-checked:text-brand-700 font-semibold transition-all">
+                    Усиленная (ЦОД)
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <!-- Опции: Утеплитель и Монтаж -->
           <div class="pt-3 border-t border-slate-200 space-y-3">
-            <label class="flex items-center gap-3.5 cursor-pointer">
+            <label id="calc-insulation-wrap" class="flex items-center gap-3.5 cursor-pointer">
               <input type="checkbox" id="calc-insulation" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
-              <span class="text-sm text-slate-800 font-medium">Теплоизоляция: минераловатные плиты 100 мм + гидроветрозащитная мембрана (+550 ₽/м²)</span>
+              <span class="text-sm text-slate-800 font-medium">Теплоизоляция фасада: минераловатные плиты 100 мм + гидроветрозащитная мембрана (+550 ₽/м²)</span>
             </label>
             <label class="flex items-center gap-3.5 cursor-pointer">
               <input type="checkbox" id="calc-install" class="w-5 h-5 text-brand-600 rounded border-slate-300 focus:ring-brand-500" checked>
