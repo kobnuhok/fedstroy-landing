@@ -2116,6 +2116,68 @@ async function runAllTests() {
       }
     });
 
+    await testCase('6.33. Yandex Cloud Function: CORS preflight, валидация, защита от .exe и приём multipart/form-data', async () => {
+      const ycHandler = require('../yandex-cloud/index').handler;
+
+      const optRes = await ycHandler({
+        httpMethod: 'OPTIONS',
+        headers: { origin: 'https://kobnuhok.github.io' }
+      });
+      if (optRes.statusCode !== 204 || optRes.headers['Access-Control-Allow-Origin'] !== 'https://kobnuhok.github.io') {
+        throw new Error(`Некорректный OPTIONS ответ: ${JSON.stringify(optRes)}`);
+      }
+
+      const boundary = '----TestBoundary12345';
+      const buildMultipart = (parts) => {
+        const chunks = [];
+        for (const p of parts) {
+          if (p.filename !== undefined) {
+            chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${p.name}"; filename="${p.filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`));
+            chunks.push(p.data);
+            chunks.push(Buffer.from('\r\n'));
+          } else {
+            chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${p.name}"\r\n\r\n${p.value}\r\n`));
+          }
+        }
+        chunks.push(Buffer.from(`--${boundary}--\r\n`));
+        return Buffer.concat(chunks);
+      };
+
+      const badExeBody = buildMultipart([
+        { name: 'name', value: 'Иван' },
+        { name: 'phone', value: '+7 (999) 123-45-67' },
+        { name: 'agreement', value: 'true' },
+        { name: 'attachment', filename: 'virus.dwg', data: Buffer.from('MZ\x90\x00test') }
+      ]);
+      const exeRes = await ycHandler({
+        httpMethod: 'POST',
+        headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, origin: 'https://kobnuhok.github.io' },
+        isBase64Encoded: true,
+        body: badExeBody.toString('base64')
+      });
+      if (exeRes.statusCode !== 400) {
+        throw new Error(`Ожидался 400 для .exe под видом .dwg в YC, получено: ${exeRes.statusCode}`);
+      }
+
+      const validPdfBody = buildMultipart([
+        { name: 'name', value: 'Сергей ПТО' },
+        { name: 'phone', value: '+7 (999) 123-45-67' },
+        { name: 'agreement', value: 'true' },
+        { name: 'source', value: 'GitHub Pages' },
+        { name: 'attachment', filename: 'project.pdf', data: Buffer.from('%PDF-1.4\n%test') }
+      ]);
+      const okRes = await ycHandler({
+        httpMethod: 'POST',
+        headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, origin: 'https://kobnuhok.github.io' },
+        isBase64Encoded: true,
+        body: validPdfBody.toString('base64')
+      });
+      const okData = JSON.parse(okRes.body);
+      if (okRes.statusCode !== 200 || !okData.success || !okData.leadId?.startsWith('ФС-')) {
+        throw new Error(`Ожидался 200 с ФС-номером в YC, получено: ${okRes.statusCode} ${okRes.body}`);
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();

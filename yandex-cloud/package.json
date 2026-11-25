@@ -1,0 +1,9 @@
+{
+  "name": "fedstroy-lead-function",
+  "version": "1.0.0",
+  "description": "Yandex Cloud Function для приёма заявок ООО «ФЕДСТРОЙ» (Telegram + Email)",
+  "main": "index.js",
+  "dependencies": {
+    "nodemailer": "^10.0.10"
+  }
+}

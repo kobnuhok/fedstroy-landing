@@ -3,12 +3,13 @@
   // config
   // Client API and contact configuration.
   
+  const YANDEX_FUNCTION_URL = 'https://functions.yandexcloud.net/REPLACE_WITH_YOUR_FUNCTION_ID';
+  
   const CONFIG = {
-    // Основной эндпоинт отправки заявок:
-    // Если сайт открыт с локального сервера или своего домена — используется относительный путь /api/lead.
-    // При деплое на сторонний бэкенд укажите полный URL (например, https://api.ooofedstroy.ru/api/lead).
+    // На GitHub Pages используем Yandex Cloud Function (стабильно работает в РФ),
+    // локально и на собственном домене — относительный маршрут /api/lead.
     API_URL: window.location.origin.includes('github.io')
-      ? 'https://fedstroy-landing.vercel.app/api/lead' // URL бэкенда Vercel (работает в РФ без VPN)
+      ? YANDEX_FUNCTION_URL
       : '/api/lead',
   
     // Прямые каналы оперативной связи
