@@ -175,7 +175,11 @@
         if (areaSlider && targetVal) {
           areaSlider.value = targetVal;
           updateCalculator();
-          document.querySelectorAll('.js-area-preset').forEach(b => b.classList.remove('bg-brand-600', 'text-white', 'border-brand-600'));
+          document.querySelectorAll('.js-area-preset').forEach(b => {
+            b.classList.remove('bg-brand-600', 'text-white', 'border-brand-600');
+            b.classList.add('bg-white', 'text-slate-700', 'border-slate-200');
+          });
+          btn.classList.remove('bg-white', 'text-slate-700', 'border-slate-200');
           btn.classList.add('bg-brand-600', 'text-white', 'border-brand-600');
         }
       });

@@ -268,6 +268,12 @@ test('desktop: визуальные состояния квиза, якорны�
   const defaultFacadeBtn = page.locator('.js-quiz-type-btn[data-type="facade"]');
   await expect(defaultFacadeBtn).toHaveClass(/quiz-card-selected/);
 
+  // 1b. Клик по кнопке площади калькулятора (250 м²) не должен делать кнопку белой на белом
+  const preset250 = page.locator('.js-area-preset[data-area="250"]');
+  await preset250.click();
+  await expect(preset250).toHaveCSS('background-color', 'rgb(234, 88, 12)');
+  await expect(preset250).toHaveCSS('color', 'rgb(255, 255, 255)');
+
   // 2. Отступ якорной прокрутки под sticky-шапку
   await page.locator('nav a[href="#calculator"]').first().click();
   const scrollOffsets = await page.evaluate(() => {
