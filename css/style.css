@@ -37,15 +37,15 @@ input[type="range"] {
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-  background: #cbd5e1;
+  background: #94a3b8;
   height: 8px;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
 input[type="range"]::-moz-range-track {
-  background: #cbd5e1;
+  background: #94a3b8;
   height: 8px;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -94,39 +94,39 @@ input[type="range"]::-moz-range-thumb {
   transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
 }
 
-/* Карточки квиза в темной теме — без остаточного/постоянного выделения */
-.quiz-step button {
+/* Карточки выбора в квизе в темной теме — не затрагиваем кнопки формы на 5-м шаге */
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card) {
   background-color: rgba(30, 41, 59, 0.6) !important;
   color: #ffffff !important;
   outline: none !important;
 }
 
-.quiz-step button:focus,
-.quiz-step button:focus-visible,
-.quiz-step button:active {
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card):focus,
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card):focus-visible,
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card):active {
   outline: none !important;
   box-shadow: none !important;
 }
 
-.quiz-step button h4 {
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card) h4 {
   color: #ffffff !important;
 }
 
-.quiz-step button p {
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card) p {
   color: #94a3b8 !important;
 }
 
 /* Выбранная пользователем карточка квиза */
-.quiz-step button.quiz-card-selected {
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card).quiz-card-selected {
   border-color: #f97316 !important;
   background-color: rgba(249, 115, 22, 0.14) !important;
 }
 
-.quiz-step button.quiz-card-selected h4 {
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card).quiz-card-selected h4 {
   color: #fed7aa !important;
 }
 
-.quiz-step button.quiz-card-selected p {
+.quiz-step :is(.js-quiz-type-btn, .js-quiz-building-btn, .js-quiz-area-card).quiz-card-selected p {
   color: #f8fafc !important;
 }
 

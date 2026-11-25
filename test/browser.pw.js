@@ -115,12 +115,13 @@ test('desktop: квиз — прохождение всех шагов и фор
 
   const nextBtn = page.locator('#quiz-next-btn');
 
-  // Проходим шаги 1, 2, 3, 4
-  for (let step = 1; step <= 4; step++) {
-    await expect(nextBtn).toBeVisible();
-    await nextBtn.click();
-    await page.waitForTimeout(100);
-  }
+  // Выбираем самые длинные варианты на шаге 1 и шаге 2
+  await page.locator('.js-quiz-type-btn[data-type="complex"]').click();
+  await page.locator('#quiz-next-btn').click();
+  await page.locator('.js-quiz-building-btn[data-building="industrial"]').click();
+  await page.locator('#quiz-next-btn').click();
+  await page.locator('#quiz-next-btn').click();
+  await page.locator('#quiz-next-btn').click();
 
   // На 5-м шаге: результат квиза виден
   const resultContainer = page.locator('#quiz-step-5');
@@ -129,6 +130,17 @@ test('desktop: квиз — прохождение всех шагов и фор
   const resultCode = page.locator('#quiz-result-code');
   await expect(resultCode).toBeVisible({ timeout: 4000 });
   await expect(resultCode).toContainText('Черновик сметы ПР-');
+
+  // Кнопка отправки на 5-м шаге должна иметь оранжевый фон bg-brand-600 (не перекрытый .quiz-step button)
+  const quizSubmitBtn = resultContainer.locator('button[type="submit"]');
+  const btnBg = await quizSubmitBtn.evaluate(el => getComputedStyle(el).backgroundColor);
+  expect(btnBg).toBe('rgb(234, 88, 12)');
+
+  // Отправка формы квиза с длинным значением source (проверка лимита source)
+  await resultContainer.locator('input[name="name"]').fill('ООО Тест Квиз');
+  await resultContainer.locator('input[name="phone"]').fill('+79999999998');
+  await quizSubmitBtn.click();
+  await expect(resultContainer.locator('.js-success-lead-id')).toBeVisible({ timeout: 8000 });
 });
 
 // ============================================================
