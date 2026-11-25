@@ -1868,7 +1868,7 @@ async function runAllTests() {
       }
 
       // 3. Проверка нейтрализованного текста для файлов > 20 МБ в sendToEmail
-      const serverSource = fs.readFileSync(path.resolve(__dirname, '..', 'server.js'), 'utf8');
+      const serverSource = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'notifications.js'), 'utf8');
       if (serverSource.includes('направляется в Telegram-чат ПТО отдельным каналом')) {
         throw new Error('В server.js осталась устаревшая формулировка об обязательной отправке файла в Telegram до получения фактического ответа Telegram');
       }
