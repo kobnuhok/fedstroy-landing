@@ -167,7 +167,10 @@ function validatePayload(fields) {
 
 function requestTelegram(apiPath, headers, body) {
   return new Promise((resolve, reject) => {
-    const reqHeaders = { ...headers };
+    const reqHeaders = {
+      'User-Agent': 'fedstroy-yc-relay/1.0',
+      ...headers
+    };
     if (TELEGRAM_RELAY_SECRET) {
       reqHeaders['X-Relay-Secret'] = TELEGRAM_RELAY_SECRET;
     }
