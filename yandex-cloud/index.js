@@ -25,6 +25,8 @@ const TELEGRAM_API_HOST = (process.env.TELEGRAM_API_HOST || 'api.telegram.org')
   .replace(/\/.*$/, '')
   .trim() || 'api.telegram.org';
 const TELEGRAM_RELAY_SECRET = process.env.TELEGRAM_RELAY_SECRET || '';
+const GOOGLE_SHEETS_WEBHOOK_URL = process.env.GOOGLE_SHEETS_WEBHOOK_URL || '';
+const SHEETS_TIMEOUT_MS = 5000;
 
 function getCorsHeaders(origin) {
   const allowOrigin = (origin && ALLOWED_ORIGINS.some(re => re.test(origin)))
@@ -266,11 +268,55 @@ async function sendEmail(lead, file) {
     socketTimeout: EMAIL_TIMEOUT_MS
   });
 
+  const safeName = escapeHtml(lead.name) || 'Не указано';
+  const safePhone = escapeHtml(lead.phone);
+  const safeService = escapeHtml(lead.service) || '—';
+  const safeArea = lead.area ? `${escapeHtml(lead.area)} м²` : '—';
+  const safeBuilding = escapeHtml(lead.building) || '—';
+  const safeSource = escapeHtml(lead.source) || 'Форма на сайте';
+  const safeComment = escapeHtml(lead.comment) || '—';
+  const mskTime = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+  const fileLine = file ? `${escapeHtml(file.originalName)} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : 'Нет';
+
   const mailOptions = {
     from: `"ООО «ФЕДСТРОЙ»" <${user}>`,
     to,
-    subject: `🏗 Новая заявка [${lead.leadId}]: ${lead.name}`,
-    text: `Заявка ${lead.leadId}\nКлиент: ${lead.name}\nТелефон: ${lead.phone}\nИсточник: ${lead.source}`
+    replyTo: user,
+    subject: `🏗 Новая заявка [${lead.leadId}]: ${lead.name || lead.phone}`,
+    text: [
+      `Заявка: ${lead.leadId}`,
+      `Дата: ${mskTime} (МСК)`,
+      `Клиент: ${lead.name || 'Не указано'}`,
+      `Телефон: ${lead.phone}`,
+      `Услуга: ${lead.service || '—'}`,
+      `Площадь: ${lead.area ? lead.area + ' м²' : '—'}`,
+      `Тип объекта: ${lead.building || '—'}`,
+      `Комментарий: ${lead.comment || '—'}`,
+      `Источник: ${lead.source || 'Форма на сайте'}`,
+      `Файл ТЗ: ${file ? file.originalName : 'Нет'}`
+    ].join('\n'),
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+        <div style="background: #0f172a; padding: 20px 24px; color: #ffffff;">
+          <h2 style="margin: 0 0 6px 0; font-size: 18px;">🏗 Новая заявка с сайта ООО «ФЕДСТРОЙ»</h2>
+          <p style="margin: 0; color: #94a3b8; font-size: 13px;">Номер: <strong style="color: #38bdf8;">${lead.leadId}</strong> • ${mskTime} (МСК)</p>
+        </div>
+        <div style="padding: 20px 24px; background: #ffffff;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <tbody>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b; width: 35%;"><strong>Клиент:</strong></td><td style="padding: 8px 0; color: #0f172a;">${safeName}</td></tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b;"><strong>Телефон:</strong></td><td style="padding: 8px 0; color: #0f172a;">${safePhone}</td></tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b;"><strong>Услуга:</strong></td><td style="padding: 8px 0; color: #0f172a;">${safeService}</td></tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b;"><strong>Площадь:</strong></td><td style="padding: 8px 0; color: #0f172a;">${safeArea}</td></tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b;"><strong>Тип объекта:</strong></td><td style="padding: 8px 0; color: #0f172a;">${safeBuilding}</td></tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b;"><strong>Источник:</strong></td><td style="padding: 8px 0; color: #0f172a;">${safeSource}</td></tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b;"><strong>Комментарий:</strong></td><td style="padding: 8px 0; color: #0f172a; white-space: pre-wrap;">${safeComment}</td></tr>
+              <tr><td style="padding: 8px 0; color: #64748b;"><strong>Файл ТЗ:</strong></td><td style="padding: 8px 0; color: #0f172a;">${fileLine}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `
   };
 
   if (file && file.buffer && file.size <= MAX_EMAIL_ATTACHMENT_SIZE) {
@@ -282,6 +328,53 @@ async function sendEmail(lead, file) {
     new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), EMAIL_TIMEOUT_MS))
   ]);
   return { sent: true, messageId: info.messageId };
+}
+
+function saveToGoogleSheet(lead, file) {
+  if (process.env.NODE_ENV === 'test') {
+    return Promise.resolve({ saved: true, mocked: true });
+  }
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) {
+    return Promise.resolve({ saved: false, reason: 'GOOGLE_SHEETS_WEBHOOK_URL not set' });
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      const target = new URL(GOOGLE_SHEETS_WEBHOOK_URL);
+      const payload = JSON.stringify({
+        createdAtMsk: new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }),
+        leadId: lead.leadId,
+        name: lead.name,
+        phone: lead.phone,
+        service: lead.service,
+        area: lead.area,
+        building: lead.building,
+        comment: lead.comment,
+        source: lead.source,
+        fileInfo: file ? `${file.originalName} (${(file.size / (1024 * 1024)).toFixed(2)} МБ)` : ''
+      });
+
+      const req = https.request({
+        host: target.host,
+        path: `${target.pathname}${target.search}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: SHEETS_TIMEOUT_MS
+      }, (res) => {
+        res.resume();
+        resolve({ saved: res.statusCode >= 200 && res.statusCode < 400, statusCode: res.statusCode });
+      });
+      req.on('timeout', () => req.destroy(new Error('Google Sheets timeout')));
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 exports.handler = async (event) => {
@@ -340,19 +433,21 @@ exports.handler = async (event) => {
       source: String(fields.source || 'GitHub Pages').trim()
     };
 
-    const [tgRes, emRes] = await Promise.allSettled([
+    const [tgRes, emRes, sheetRes] = await Promise.allSettled([
       sendTelegram(lead, file),
-      sendEmail(lead, file)
+      sendEmail(lead, file),
+      saveToGoogleSheet(lead, file)
     ]);
 
     const tgVal = tgRes.status === 'fulfilled' ? tgRes.value : { sent: false, error: tgRes.reason?.message };
     const emVal = emRes.status === 'fulfilled' ? emRes.value : { sent: false, error: emRes.reason?.message };
+    const sheetVal = sheetRes.status === 'fulfilled' ? sheetRes.value : { saved: false, error: sheetRes.reason?.message };
 
-    if (!tgVal.sent && !emVal.sent && process.env.NODE_ENV !== 'test') {
-      console.error('[yc:lead:delivery-failed]', { tgVal, emVal });
+    if (!tgVal.sent && !emVal.sent && !sheetVal.saved && process.env.NODE_ENV !== 'test') {
+      console.error('[yc:lead:delivery-failed]', { tgVal, emVal, sheetVal });
       return jsonResponse(502, {
         success: false,
-        error: `Не удалось доставить уведомление (${tgVal.error || tgVal.reason || emVal.error || 'таймаут'}).`
+        error: `Не удалось доставить уведомление (${tgVal.error || tgVal.reason || emVal.error || sheetVal.error || 'таймаут'}).`
       }, origin);
     }
 
@@ -362,7 +457,8 @@ exports.handler = async (event) => {
       message: 'Заявка зарегистрирована. Мы свяжемся с вами в рабочее время.',
       ...(process.env.NODE_ENV === 'test' ? {
         telegram: tgVal,
-        email: emVal
+        email: emVal,
+        sheet: sheetVal
       } : {})
     }, origin);
   } catch (err) {

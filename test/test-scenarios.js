@@ -2173,8 +2173,8 @@ async function runAllTests() {
         body: validPdfBody.toString('base64')
       });
       const okData = JSON.parse(okRes.body);
-      if (okRes.statusCode !== 200 || !okData.success || !okData.leadId?.startsWith('ФС-')) {
-        throw new Error(`Ожидался 200 с ФС-номером в YC, получено: ${okRes.statusCode} ${okRes.body}`);
+      if (okRes.statusCode !== 200 || !okData.success || !okData.leadId?.startsWith('ФС-') || !okData.email?.sent || !okData.sheet?.saved) {
+        throw new Error(`Ожидался 200 с ФС-номером, email и sheet в YC, получено: ${okRes.statusCode} ${okRes.body}`);
       }
     });
 
