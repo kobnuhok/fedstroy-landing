@@ -18,6 +18,14 @@
 
 ## Страницы сайта
 - [Главная страница](https://fedstroy-landing.vercel.app/): услуги, квиз-смета, онлайн-калькулятор, фотогалерея объектов, контакты.
+- [Вентфасады из керамогранита](https://fedstroy-landing.vercel.app/ventfasad-keramogranit.html): характеристики, подсистемы, монтаж.
+- [Вентфасады из композита (АКП)](https://fedstroy-landing.vercel.app/ventfasad-akp.html): ЧПУ-фрезеровка кассет и монтаж для ТРЦ/БЦ.
+- [Фасадные металлокассеты](https://fedstroy-landing.vercel.app/metallokassety.html): открытый и закрытый замок, класс НГ.
+- [Фальшполы для ЦОД и офисов](https://fedstroy-landing.vercel.app/falshpol-cod.html): сульфат кальция и ДСП 38 мм.
+- [Производство подсистем НВФ](https://fedstroy-landing.vercel.app/podsystemy-nvf.html): завод в Костроме, оптовые поставки.
+- [Проектирование КМ, КМД и 3D-съёмка](https://fedstroy-landing.vercel.app/proektirovanie-kmd.html): геодезия Leica и рабочая документация.
+- [Реконструкция и демонтаж фасадов](https://fedstroy-landing.vercel.app/rekonstrukciya-demontazh.html): обследование, замена утепления и отсечки К0.
+- [Работы по 44-ФЗ и 223-ФЗ](https://fedstroy-landing.vercel.app/podryad-44fz-223fz.html): подряд для школ, медцентров и гособъектов.
 - [Карточка реквизитов](https://fedstroy-landing.vercel.app/requisites.html): официальные реквизиты организации.
 - [Политика конфиденциальности](https://fedstroy-landing.vercel.app/privacy.html): правила обработки данных.
 - [Согласие на обработку ПД](https://fedstroy-landing.vercel.app/consent.html): форма согласия по 152-ФЗ.

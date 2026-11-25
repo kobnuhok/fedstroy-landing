@@ -312,6 +312,11 @@ app.post('/api/lead', validation.leadRateLimiter, handleMulterUpload, async (req
   }
 });
 
+const SEO_PAGES_FILE = path.join(__dirname, 'src', 'seo-pages.json');
+const seoPageFiles = fs.existsSync(SEO_PAGES_FILE)
+  ? JSON.parse(fs.readFileSync(SEO_PAGES_FILE, 'utf8')).map(p => `${p.slug}.html`)
+  : [];
+
 const ALLOWED_ROOT_FILES = new Set([
   'index.html',
   'app.js',
@@ -321,7 +326,8 @@ const ALLOWED_ROOT_FILES = new Set([
   'robots.txt',
   'sitemap.xml',
   'llms.txt',
-  'favicon.ico'
+  'favicon.ico',
+  ...seoPageFiles
 ]);
 
 app.use('/css', express.static(path.join(__dirname, 'css')));

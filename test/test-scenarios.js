@@ -2091,6 +2091,31 @@ async function runAllTests() {
       cleanTestData();
     });
 
+    await testCase('6.32. SEO-файлы (robots.txt, sitemap.xml, llms.txt) и 8 посадочных страниц отдаются (200), src/seo-pages.json закрыт (404)', async () => {
+      const seoPages = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'src', 'seo-pages.json'), 'utf8'));
+      const publicPaths = ['/robots.txt', '/sitemap.xml', '/llms.txt', ...seoPages.map(p => `/${p.slug}.html`)];
+
+      for (const p of publicPaths) {
+        const res = await fetch(`http://localhost:${TEST_PORT}${p}`);
+        if (res.status !== 200) {
+          throw new Error(`Ожидался 200 для ${p}, получено: ${res.status}`);
+        }
+      }
+
+      const sitemapRes = await fetch(`http://localhost:${TEST_PORT}/sitemap.xml`);
+      const sitemapText = await sitemapRes.text();
+      for (const p of seoPages) {
+        if (!sitemapText.includes(`/${p.slug}.html`)) {
+          throw new Error(`sitemap.xml не содержит /${p.slug}.html`);
+        }
+      }
+
+      const privateRes = await fetch(`http://localhost:${TEST_PORT}/src/seo-pages.json`);
+      if (privateRes.status !== 404) {
+        throw new Error(`Ожидался 404 для /src/seo-pages.json, получено: ${privateRes.status}`);
+      }
+    });
+
   } finally {
     serverProc.kill();
     cleanTestData();

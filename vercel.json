@@ -2,11 +2,8 @@
   "version": 2,
   "builds": [
     { "src": "server.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "*.html", "use": "@vercel/static" },
     { "src": "app.js", "use": "@vercel/static" },
-    { "src": "consent.html", "use": "@vercel/static" },
-    { "src": "privacy.html", "use": "@vercel/static" },
-    { "src": "requisites.html", "use": "@vercel/static" },
     { "src": "robots.txt", "use": "@vercel/static" },
     { "src": "sitemap.xml", "use": "@vercel/static" },
     { "src": "llms.txt", "use": "@vercel/static" },

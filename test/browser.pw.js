@@ -290,3 +290,55 @@ test('desktop: визуальные состояния квиза, якорны�
   await page.locator('.js-close-modal').first().click();
   await expect(leadModal).toHaveClass(/hidden/);
 });
+
+test('seo: все сгенерированные SEO-страницы отдаются с canonical, JSON-LD, без overflow и открывают модалку с услугой', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Выполняется в desktop-конфигурации с явным viewport');
+  const seoPages = [
+    'ventfasad-keramogranit.html',
+    'ventfasad-akp.html',
+    'metallokassety.html',
+    'falshpol-cod.html',
+    'podsystemy-nvf.html',
+    'proektirovanie-kmd.html',
+    'rekonstrukciya-demontazh.html',
+    'podryad-44fz-223fz.html'
+  ];
+
+  for (const slug of seoPages) {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/${slug}`, { waitUntil: 'domcontentloaded' });
+
+    const seoMeta = await page.evaluate(() => {
+      const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
+      const jsonLdRaw = document.querySelector('script[type="application/ld+json"]')?.textContent || '{}';
+      const jsonLd = JSON.parse(jsonLdRaw);
+      const types = (jsonLd['@graph'] || []).map(n => n['@type']);
+      return {
+        title: document.title,
+        canonical,
+        types,
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth
+      };
+    });
+
+    expect(seoMeta.title.length).toBeGreaterThan(10);
+    expect(seoMeta.canonical).toContain(slug);
+    expect(seoMeta.types).toContain('BreadcrumbList');
+    expect(seoMeta.types).toContain('Service');
+    expect(seoMeta.scrollWidth).toBeLessThanOrEqual(seoMeta.clientWidth + 1);
+  }
+
+  // Проверка модалки с предзаполненной услугой и мобильного viewport на одной из страниц
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('/ventfasad-keramogranit.html', { waitUntil: 'domcontentloaded' });
+  const mobileOverflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth
+  }));
+  expect(mobileOverflow.scrollWidth).toBeLessThanOrEqual(mobileOverflow.clientWidth + 1);
+
+  await page.locator('.js-open-modal:visible').first().click();
+  await expect(page.locator('#lead-modal')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#modal-service-title')).toContainText('Вентфасад из керамогранита');
+});
