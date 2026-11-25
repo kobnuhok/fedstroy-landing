@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /data/
+Disallow: /uploads/
+Disallow: /src/
+Disallow: /blocks/
+Disallow: /lib/
+Disallow: /test/
+Disallow: /scripts/
+Disallow: /deploy/
+
+Sitemap: https://fedstroy-landing.vercel.app/sitemap.xml

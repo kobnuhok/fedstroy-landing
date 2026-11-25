@@ -319,6 +319,8 @@ const ALLOWED_ROOT_FILES = new Set([
   'consent.html',
   'requisites.html',
   'robots.txt',
+  'sitemap.xml',
+  'llms.txt',
   'favicon.ico'
 ]);
 
