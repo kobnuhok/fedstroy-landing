@@ -3,7 +3,6 @@ export function initFloatingDock() {
   const dockTrigger = document.getElementById('dock-trigger');
   const dockMenu = document.getElementById('dock-menu');
   const scrollToTopBtn = document.getElementById('scroll-to-top');
-  const callbackModal = document.getElementById('callback-modal');
 
   // Плавающее меню
   if (dockTrigger && dockMenu) {
@@ -44,32 +43,13 @@ export function initFloatingDock() {
     });
   }
 
-  // Экспресс-модалка «Звонок за 25 минут»
-  if (callbackModal) {
+  // Закрытие меню дока при открытии экспресс-модалки (жизненным циклом модалки управляет forms.js)
+  if (dockMenu) {
     document.querySelectorAll('.js-open-callback').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        callbackModal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-        if (dockMenu) {
-          dockMenu.classList.remove('visible-menu');
-          dockMenu.classList.add('hidden-menu');
-        }
-      });
-    });
-
-    document.querySelectorAll('.js-close-callback').forEach(btn => {
       btn.addEventListener('click', () => {
-        callbackModal.classList.add('hidden');
-        document.body.style.overflow = '';
+        dockMenu.classList.remove('visible-menu');
+        dockMenu.classList.add('hidden-menu');
       });
-    });
-
-    callbackModal.addEventListener('click', (e) => {
-      if (e.target === callbackModal) {
-        callbackModal.classList.add('hidden');
-        document.body.style.overflow = '';
-      }
     });
   }
 }

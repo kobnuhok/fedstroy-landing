@@ -82,6 +82,12 @@ export function initUploader() {
       }
     });
 
+    // Автоматический сброс превью при form.reset() (инкапсуляция состояния дропзоны)
+    const parentForm = zone.closest('form');
+    if (parentForm) {
+      parentForm.addEventListener('reset', resetFile);
+    }
+
     // Кнопка удаления файла
     if (removeBtn) {
       removeBtn.addEventListener('click', (e) => {

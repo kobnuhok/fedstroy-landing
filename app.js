@@ -498,7 +498,6 @@
     const dockTrigger = document.getElementById('dock-trigger');
     const dockMenu = document.getElementById('dock-menu');
     const scrollToTopBtn = document.getElementById('scroll-to-top');
-    const callbackModal = document.getElementById('callback-modal');
   
     // Плавающее меню
     if (dockTrigger && dockMenu) {
@@ -539,32 +538,13 @@
       });
     }
   
-    // Экспресс-модалка «Звонок за 25 минут»
-    if (callbackModal) {
+    // Закрытие меню дока при открытии экспресс-модалки (жизненным циклом модалки управляет forms.js)
+    if (dockMenu) {
       document.querySelectorAll('.js-open-callback').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          callbackModal.classList.remove('hidden');
-          document.body.style.overflow = 'hidden';
-          if (dockMenu) {
-            dockMenu.classList.remove('visible-menu');
-            dockMenu.classList.add('hidden-menu');
-          }
-        });
-      });
-  
-      document.querySelectorAll('.js-close-callback').forEach(btn => {
         btn.addEventListener('click', () => {
-          callbackModal.classList.add('hidden');
-          document.body.style.overflow = '';
+          dockMenu.classList.remove('visible-menu');
+          dockMenu.classList.add('hidden-menu');
         });
-      });
-  
-      callbackModal.addEventListener('click', (e) => {
-        if (e.target === callbackModal) {
-          callbackModal.classList.add('hidden');
-          document.body.style.overflow = '';
-        }
       });
     }
   }
@@ -655,6 +635,12 @@
         }
       });
   
+      // Автоматический сброс превью при form.reset() (инкапсуляция состояния дропзоны)
+      const parentForm = zone.closest('form');
+      if (parentForm) {
+        parentForm.addEventListener('reset', resetFile);
+      }
+  
       // Кнопка удаления файла
       if (removeBtn) {
         removeBtn.addEventListener('click', (e) => {
@@ -708,7 +694,7 @@
     function resetFormAndClose(form, modal = null) {
       if (!form) return;
   
-      // 1. Очищаем все текстовые поля и чекбоксы
+      // 1. Очищаем поля формы (триггерит событие reset, по которому uploader.js сам сбрасывает дропзону)
       form.reset();
   
       // 2. Скрываем сообщения об ошибках
@@ -716,20 +702,7 @@
       const errBox = form.querySelector('.js-form-global-error');
       if (errBox) errBox.classList.add('hidden');
   
-      // 3. Сбрасываем превью загрузчика файлов
-      const fileInput = form.querySelector('input[type="file"]');
-      if (fileInput) fileInput.value = '';
-      const dropzone = form.querySelector('.js-file-dropzone');
-      if (dropzone) {
-        const promptEl = dropzone.querySelector('.js-dropzone-prompt');
-        const previewEl = dropzone.querySelector('.js-dropzone-preview');
-        const errorEl = dropzone.querySelector('.js-file-error');
-        if (promptEl) promptEl.classList.remove('hidden');
-        if (previewEl) previewEl.classList.add('hidden');
-        if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
-      }
-  
-      // 4. Восстанавливаем кнопку отправки
+      // 3. Восстанавливаем кнопку отправки
       const submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -779,6 +752,14 @@
     }
   
     if (callbackModal) {
+      document.querySelectorAll('.js-open-callback').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          callbackModal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        });
+      });
+  
       document.querySelectorAll('.js-close-callback').forEach(btn => {
         btn.addEventListener('click', () => {
           const form = callbackModal.querySelector('form.js-lead-form');

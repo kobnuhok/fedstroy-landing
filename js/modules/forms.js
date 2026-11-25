@@ -14,7 +14,7 @@ export function initForms() {
   function resetFormAndClose(form, modal = null) {
     if (!form) return;
 
-    // 1. Очищаем все текстовые поля и чекбоксы
+    // 1. Очищаем поля формы (триггерит событие reset, по которому uploader.js сам сбрасывает дропзону)
     form.reset();
 
     // 2. Скрываем сообщения об ошибках
@@ -22,20 +22,7 @@ export function initForms() {
     const errBox = form.querySelector('.js-form-global-error');
     if (errBox) errBox.classList.add('hidden');
 
-    // 3. Сбрасываем превью загрузчика файлов
-    const fileInput = form.querySelector('input[type="file"]');
-    if (fileInput) fileInput.value = '';
-    const dropzone = form.querySelector('.js-file-dropzone');
-    if (dropzone) {
-      const promptEl = dropzone.querySelector('.js-dropzone-prompt');
-      const previewEl = dropzone.querySelector('.js-dropzone-preview');
-      const errorEl = dropzone.querySelector('.js-file-error');
-      if (promptEl) promptEl.classList.remove('hidden');
-      if (previewEl) previewEl.classList.add('hidden');
-      if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
-    }
-
-    // 4. Восстанавливаем кнопку отправки
+    // 3. Восстанавливаем кнопку отправки
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -85,6 +72,14 @@ export function initForms() {
   }
 
   if (callbackModal) {
+    document.querySelectorAll('.js-open-callback').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        callbackModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+
     document.querySelectorAll('.js-close-callback').forEach(btn => {
       btn.addEventListener('click', () => {
         const form = callbackModal.querySelector('form.js-lead-form');
