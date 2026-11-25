@@ -3,7 +3,7 @@
   // config
   // Client API and contact configuration.
   
-  const YANDEX_FUNCTION_URL = 'https://functions.yandexcloud.net/REPLACE_WITH_YOUR_FUNCTION_ID';
+  const YANDEX_FUNCTION_URL = 'https://functions.yandexcloud.net/d4eiforlt08mehk999fq';
   
   const CONFIG = {
     // На GitHub Pages используем Yandex Cloud Function (стабильно работает в РФ),
